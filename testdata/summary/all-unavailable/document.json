@@ -1,0 +1,48 @@
+{
+  "apiVersion": "vigil.summary/v0",
+  "generated_at": "2026-11-13T18:00:00Z",
+  "overall": null,
+  "verdicts": [
+    {
+      "source": "simplex",
+      "state": "unavailable",
+      "severity": null,
+      "reasons": [
+        "authority_unavailable"
+      ],
+      "observed_at": null
+    },
+    {
+      "source": "augur",
+      "state": "unavailable",
+      "severity": null,
+      "reasons": [
+        "authority_unavailable"
+      ],
+      "observed_at": null
+    }
+  ],
+  "vantage": {
+    "id": "lathe",
+    "status": "unchecked"
+  },
+  "hosts": [],
+  "sources": [
+    {
+      "id": "simplex",
+      "kind": "simplex",
+      "state": "unavailable",
+      "observed_at": null,
+      "last_ok": null,
+      "detail_code": "source_unavailable"
+    },
+    {
+      "id": "augur",
+      "kind": "augur",
+      "state": "unavailable",
+      "observed_at": null,
+      "last_ok": null,
+      "detail_code": "source_unavailable"
+    }
+  ]
+}
