@@ -1,6 +1,11 @@
 package exitcode
 
-import "testing"
+import (
+	"os"
+	"regexp"
+	"strconv"
+	"testing"
+)
 
 func TestTableCoversEveryCodeOnce(t *testing.T) {
 	if len(Table) != 7 {
@@ -41,5 +46,28 @@ func TestFromSeverity(t *testing.T) {
 		if _, ok := FromSeverity(bad); ok {
 			t.Errorf("FromSeverity(%q) accepted an unknown severity", bad)
 		}
+	}
+}
+
+// docs/semantics.md prints the exit table. Every row must match Table, and
+// no row may be missing or extra.
+func TestSemanticsDocMatchesTable(t *testing.T) {
+	raw, err := os.ReadFile("../../docs/semantics.md")
+	if err != nil {
+		t.Fatalf("read semantics doc: %v", err)
+	}
+	row := regexp.MustCompile(`(?m)^\| ([0-9]) \| (.+) \|$`)
+	found := map[int]bool{}
+	for _, m := range row.FindAllStringSubmatch(string(raw), -1) {
+		code, _ := strconv.Atoi(m[1])
+		found[code] = true
+	}
+	for _, e := range Table {
+		if !found[e.Code] {
+			t.Errorf("docs/semantics.md has no row for exit code %d", e.Code)
+		}
+	}
+	if len(found) != len(Table) {
+		t.Errorf("docs/semantics.md has %d exit rows, Table has %d", len(found), len(Table))
 	}
 }
