@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "vigil.overlay/v0",
+  "description": "Off-repo overlay (YAML): the only place a backend address exists. Keys are the ids declared in vigil.config/v0; an address is never accepted from argv, a route or a query.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "backends"],
+  "properties": {
+    "apiVersion": { "const": "vigil.overlay/v0" },
+    "backends": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "address"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,31}$" },
+          "address": {
+            "description": "Scheme, host and optional port and path. No userinfo, no query, no fragment; redirects are never followed.",
+            "type": "string",
+            "pattern": "^https?://[^/@\\s?#]{1,253}(:[0-9]{1,5})?(/[^\\s?#]*)?$"
+          }
+        }
+      }
+    }
+  }
+}

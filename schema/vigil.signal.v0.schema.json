@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "vigil.signal/v0",
+  "description": "An ephemeral, informational record. Accepted only by an authenticated POST and never consulted for overall or sources[]. POST bodies carry schema, source, kind, severity and optionally note and ttl; id and created_at are assigned by the server and must be absent from a request.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "source", "kind", "severity"],
+  "properties": {
+    "schema": { "const": "vigil.signal/v0" },
+    "id": {
+      "description": "Server-assigned, 128-bit lowercase hex.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{32}$"
+    },
+    "source": {
+      "description": "Caller-defined origin label, e.g. deploy. Dots and hyphens allowed; open vocabulary, shape-checked only.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_.-]{0,63}$"
+    },
+    "kind": {
+      "description": "Caller-defined event label, e.g. deploy.start. Dots and hyphens allowed; open vocabulary, shape-checked only.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_.-]{0,63}$"
+    },
+    "severity": {
+      "description": "Informational only. Deliberately not the GREEN/YELLOW/RED vocabulary.",
+      "type": "string",
+      "enum": ["info", "notice"]
+    },
+    "created_at": {
+      "description": "Server clock at acceptance, RFC 3339 UTC.",
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,9})?Z$"
+    },
+    "ttl": {
+      "description": "Lifetime in seconds. Absent means 300. A request outside 60..3600 is clamped into range before storage, so a stored document is always in range.",
+      "type": "integer",
+      "minimum": 60,
+      "maximum": 3600
+    },
+    "note": {
+      "description": "Free text, at most 280 bytes, no control characters (log and table injection guard). maxLength counts characters; the byte bound is enforced by the decoder.",
+      "type": "string",
+      "maxLength": 280,
+      "pattern": "^[^\\x00-\\x1f\\x7f]*$"
+    }
+  }
+}
