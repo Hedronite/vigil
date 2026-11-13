@@ -6,7 +6,7 @@ Vigil is a query surface. It combines the verdicts of named **authorities** into
 
 ## 1. Verdicts and `overall`
 
-An authority is a tool that publishes its own verdict document: Simplex now, Augur once its Vigil fields land. `verdicts[]` holds one entry per configured authority: `source`, `state` (`ok`, `stale`, `unavailable`), `severity` as the authority published it (null when unavailable), `reasons[]`, `observed_at` (the authority document's `generated_at`).
+An authority is a tool that publishes its own verdict document: Simplex now, Augur once its Vigil fields land. `verdicts[]` holds one entry per configured authority: `source`, `state` (`ok`, `stale`, `unavailable`), `severity` as the authority published it (null when unavailable), `reasons[]`, `observed_at` (the authority document's `generated_at`, null when no document could be read). A verdict's `reasons[]` carries only Vigil's own codes (`source_stale`, `authority_unavailable`). Simplex publishes no top-level reasons, so Vigil does not invent a verdict reason from its host reasons; those travel in `hosts[].reasons`.
 
 Severity order is GREEN < YELLOW < RED.
 
@@ -24,7 +24,7 @@ Before Augur's Vigil fields land, `verdicts[]` holds `simplex` only, and the doc
 
 ## 2. Vantage
 
-`vantage` is carried from Simplex: `id` and `status` (`ok`, `blind`, `unchecked`). A blind vantage means the prober was cut off from the mesh. Simplex reports RED with `vantage_blind` and exits 5; that is a verdict, not an unavailable source, so `overall` is RED and the exit code is 2. The reason passes through unchanged. Fixture: `vantage-blind`.
+`vantage` is carried from Simplex: `id` and `status` (`ok`, `blind`, `unchecked`). A blind vantage means the prober was cut off from the mesh. Simplex reports RED, marks `vantage.status` blind, puts `vantage_blind` on each host's `reasons`, and exits 5. That is a verdict, not an unavailable source: the document is readable, so `overall` is RED and Vigil exits 2. Vigil's exit code is its own, not the producer's. Fixture: `vantage-blind`.
 
 ## 3. Beside `overall`
 
@@ -42,7 +42,7 @@ A source joins `verdicts[]` only if it ships a document with its own heartbeat a
 
 ## 4. Reasons
 
-Authorities own their reason strings. Vigil passes them through and checks only the shape `^[a-z][a-z0-9_]{0,47}$`, so an upstream addition never breaks it. Vigil's own reasons are `source_stale`, `source_unavailable`, `schema_major`, `clock_skew` (a file newer than its own `generated_at`) and `authority_unavailable`. A consumer shows an unknown reason as plain text.
+Authorities own their reason strings. Vigil passes them through unchanged on `hosts[].reasons` (and in the `augur{}` block once Augur's fields land) and checks only the shape `^[a-z][a-z0-9_]{0,47}$`, so an upstream addition never breaks it. Vigil's own reasons are `source_stale`, `source_unavailable`, `schema_major`, `clock_skew` (a file newer than its own `generated_at`) and `authority_unavailable`. A consumer shows an unknown reason as plain text.
 
 ## 5. Exit codes
 
@@ -58,7 +58,7 @@ Codes 0 to 2 are verdicts. Codes 3 and up are errors, and no error path ever exi
 | 5 | auth, startup or bind failure |
 | 6 | internal error (a recovered panic) |
 
-The table is `internal/exitcode.Table`; a test fails if this page and the code disagree. Each summary golden carries its expected code in `expected_exit`.
+The table is `internal/exitcode.Table`; a test fails if this page and the code disagree. Each summary golden carries its expected code in `expected_exit`. That is always Vigil's code, never the producer's: `vantage-blind` is 2 while Simplex exited 5, and `simplex-yellow-augur-red` is 2 while Simplex exited 1.
 
 ## 6. Routes and auth (`vigil serve`)
 
@@ -107,7 +107,7 @@ A `vigil.signal/v0` is ephemeral and arrives only by authenticated POST.
 
 ## 10. Fixture index
 
-`testdata/summary/<case>/` holds the document and its `expected_exit`.
+`testdata/summary/<case>/` holds `document.json` and `expected_exit`. No golden carries an `augur{}` block: its content is frozen when Augur's fields land, and Augur's status rides in `verdicts[]` and `sources[]`.
 
 | Case | `overall` | Exit |
 | --- | --- | --- |
@@ -123,3 +123,7 @@ A `vigil.signal/v0` is ephemeral and arrives only by authenticated POST.
 | `signal-present` | GREEN | 0 |
 
 The last three are built on `simplex-green` and prove that Grafana, Scry and a signal leave `overall` where it was.
+
+`schema-major-mismatch`: the Simplex verdict is `unavailable` with severity null, `observed_at` null and reason `authority_unavailable`; its `sources[]` entry has `detail_code` `schema_major`; Augur is `ok` GREEN beside it; `overall` is YELLOW.
+
+`signal-present` cannot show a signal inside the summary, because the summary has no signals field by contract. Its `document.json` is therefore byte-identical to `simplex-green`, and the directory also holds `signal.json`, a `vigil.signal/v0` document. The assertion is that the summary built with that signal present equals the summary built without it.
