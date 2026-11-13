@@ -1,0 +1,54 @@
+{
+  "apiVersion": "vigil.summary/v0",
+  "generated_at": "2026-11-13T18:00:00Z",
+  "overall": "YELLOW",
+  "verdicts": [
+    {
+      "source": "simplex",
+      "state": "stale",
+      "severity": "GREEN",
+      "reasons": [
+        "source_stale"
+      ],
+      "observed_at": "2026-11-13T17:57:00Z"
+    }
+  ],
+  "vantage": {
+    "id": "lathe",
+    "status": "ok"
+  },
+  "hosts": [
+    {
+      "id": "box",
+      "severity": "GREEN",
+      "reasons": [],
+      "source": "simplex"
+    },
+    {
+      "id": "lathe",
+      "severity": "GREEN",
+      "reasons": [],
+      "source": "simplex"
+    },
+    {
+      "id": "tower",
+      "severity": "GREEN",
+      "reasons": [
+        "expected_dark",
+        "tcp_connect_refused",
+        "tcp_connect_ok"
+      ],
+      "source": "simplex"
+    }
+  ],
+  "sources": [
+    {
+      "id": "simplex",
+      "kind": "simplex",
+      "state": "stale",
+      "observed_at": "2026-11-13T17:57:00Z",
+      "last_ok": "2026-11-13T17:57:00Z",
+      "detail_code": "source_stale"
+    }
+  ]
+}

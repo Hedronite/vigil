@@ -1,0 +1,4 @@
+apiVersion: vigil.config/v0
+authorities:
+  - id: grafana
+    path_ref: env:VIGIL_GRAFANA_PATH

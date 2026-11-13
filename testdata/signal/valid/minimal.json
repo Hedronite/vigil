@@ -1,0 +1,6 @@
+{
+  "apiVersion": "vigil.signal/v0",
+  "source": "deploy",
+  "kind": "deploy.start",
+  "severity": "info"
+}

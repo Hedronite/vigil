@@ -1,0 +1,62 @@
+{
+  "apiVersion": "vigil.summary/v0",
+  "generated_at": "2026-11-13T18:00:00Z",
+  "overall": "RED",
+  "verdicts": [
+    {
+      "source": "simplex",
+      "state": "ok",
+      "severity": "YELLOW",
+      "reasons": [
+        "prom_pair_degraded"
+      ],
+      "observed_at": "2026-11-13T18:00:00Z"
+    },
+    {
+      "source": "augur",
+      "state": "ok",
+      "severity": "RED",
+      "reasons": [
+        "alert_firing"
+      ],
+      "observed_at": "2026-11-13T18:00:00Z"
+    }
+  ],
+  "vantage": {
+    "id": "lathe",
+    "status": "unchecked"
+  },
+  "hosts": [
+    {
+      "id": "box",
+      "severity": "YELLOW",
+      "reasons": [
+        "tcp_connect_ok",
+        "prom_pair_degraded"
+      ],
+      "source": "simplex"
+    },
+    {
+      "id": "lathe",
+      "severity": "GREEN",
+      "reasons": [],
+      "source": "simplex"
+    }
+  ],
+  "sources": [
+    {
+      "id": "simplex",
+      "kind": "simplex",
+      "state": "ok",
+      "observed_at": "2026-11-13T18:00:00Z",
+      "last_ok": "2026-11-13T18:00:00Z"
+    },
+    {
+      "id": "augur",
+      "kind": "augur",
+      "state": "ok",
+      "observed_at": "2026-11-13T18:00:00Z",
+      "last_ok": "2026-11-13T18:00:00Z"
+    }
+  ]
+}

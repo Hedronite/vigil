@@ -1,0 +1,9 @@
+apiVersion: vigil.config/v0
+authorities:
+  - id: simplex
+    path_ref: env:VIGIL_SIMPLEX_PATH
+queries:
+  - name: up_by_host
+    backend: prom
+    expr: up
+    timeout: 30s

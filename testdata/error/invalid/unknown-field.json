@@ -1,0 +1,7 @@
+{
+  "apiVersion": "vigil.error/v0",
+  "error": {
+    "code": "unauthorized"
+  },
+  "detail": "x"
+}
