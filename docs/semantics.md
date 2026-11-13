@@ -24,7 +24,7 @@ Before Augur's Vigil fields land, `verdicts[]` holds `simplex` only, and the doc
 
 ## 2. Vantage
 
-`vantage` is carried from Simplex: `id` and `status` (`ok`, `blind`, `unchecked`). A blind vantage means the prober was cut off from the mesh. Simplex reports RED, marks `vantage.status` blind, puts `vantage_blind` on each host's `reasons`, and exits 5. That is a verdict, not an unavailable source: the document is readable, so `overall` is RED and Vigil exits 2. Vigil's exit code is its own, not the producer's. Fixture: `vantage-blind`.
+`vantage` is carried from Simplex: `id` and `status` (`ok`, `blind`, `unchecked`). A blind vantage means the prober was cut off from the mesh. Simplex reports RED, marks `vantage.status` blind, puts `vantage_blind` on each host's `reasons`, and exits 5. That is a verdict, not an unavailable source: the document is readable, so `overall` is RED and Vigil exits 2. Vigil's exit code is its own, not the producer's. Fixture: `vantage-blind`. When Simplex is unavailable there is no vantage to carry, so `vantage` is omitted; Vigil never invents one. Fixtures: `all-unavailable`, `schema-major-mismatch`.
 
 ## 3. Beside `overall`
 
