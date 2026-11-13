@@ -1,5 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Hedronite/vigil/schema/vigil.overlay.v0.schema.json",
   "title": "vigil.overlay/v0",
   "description": "Off-repo overlay (YAML): the only place a backend address exists. Keys are the ids declared in vigil.config/v0; an address is never accepted from argv, a route or a query.",
   "type": "object",

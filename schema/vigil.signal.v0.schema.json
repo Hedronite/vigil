@@ -1,5 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Hedronite/vigil/schema/vigil.signal.v0.schema.json",
   "title": "vigil.signal/v0",
   "description": "An ephemeral, informational record. Accepted only by an authenticated POST and never consulted for overall or sources[]. POST bodies carry schema, source, kind, severity and optionally note and ttl; id and created_at are assigned by the server and must be absent from a request.",
   "type": "object",

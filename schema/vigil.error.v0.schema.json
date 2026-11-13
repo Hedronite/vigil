@@ -1,5 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Hedronite/vigil/schema/vigil.error.v0.schema.json",
   "title": "vigil.error/v0",
   "description": "Every non-200 response body from the listener. Missing and wrong tokens produce byte-identical bodies, and no reason detail is ever echoed.",
   "type": "object",

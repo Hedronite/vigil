@@ -1,5 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Hedronite/vigil/schema/vigil.config.v0.schema.json",
   "title": "vigil.config/v0",
   "description": "Vigil configuration (YAML). Strict: unknown keys are errors. No field accepts a URL or a selector; backend addresses live only in the off-repo overlay, keyed by the ids declared here.",
   "type": "object",

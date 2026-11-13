@@ -1,5 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Hedronite/vigil/schema/vigil.summary.v0.schema.json",
   "title": "vigil.summary/v0",
   "description": "The single document Vigil produces. Severity is combined from the named authorities' own verdicts; Vigil never derives severity from raw data. Additive within v0; consumers refuse unknown majors.",
   "type": "object",
@@ -93,14 +94,15 @@
     "host": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "severity", "reason", "source"],
+      "required": ["id", "severity", "reasons", "source"],
       "properties": {
         "id": { "$ref": "#/$defs/slug" },
         "severity": { "$ref": "#/$defs/severity" },
-        "reason": {
-          "description": "First reason code from the host's Simplex entry, or empty when the host has none. Vigil carries one line; the full list stays in the Simplex document.",
-          "type": "string",
-          "pattern": "^([a-z][a-z0-9_]{0,47})?$"
+        "reasons": {
+          "description": "Passed through from the host's Simplex entry unchanged; may be empty.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/reason" }
         },
         "source": { "const": "simplex" }
       }
