@@ -31,7 +31,7 @@ func runRecovered(args []string, stdout, stderr io.Writer) int {
 func runRecoveredWith(f func() int, stderr io.Writer) (code int) {
 	defer func() {
 		if r := recover(); r != nil {
-			fmt.Fprintf(stderr, "vigil: internal error: %v\n", r)
+			_, _ = fmt.Fprintf(stderr, "vigil: internal error: %v\n", r)
 			code = exitcode.Internal
 		}
 	}()
@@ -40,10 +40,10 @@ func runRecoveredWith(f func() int, stderr io.Writer) (code int) {
 
 func run(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 1 && args[0] == "version" {
-		fmt.Fprintln(stdout, versionLine())
+		_, _ = fmt.Fprintln(stdout, versionLine())
 		return exitcode.Green
 	}
-	fmt.Fprintln(stderr, "usage: vigil version")
+	_, _ = fmt.Fprintln(stderr, "usage: vigil version")
 	return exitcode.Usage
 }
 

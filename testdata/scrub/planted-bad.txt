@@ -1,0 +1,15 @@
+This file is planted input for scripts/scrub.sh --selftest. Every value is
+synthetic. The self-test expects a scan of this directory to fail, and expects
+each rule below to fire at least once. It is skipped by the tracked-tree scan.
+
+shared address space:   100.64.12.34
+private 10/8:           10.1.2.3
+private 172.16/12:      172.20.0.9
+private 192.168/16:     192.168.50.7
+tailnet IPv6:           fd7a:115c:a1e0::1
+tailnet hostname:       somehost.tail0000.ts.net
+hostname in a fixture:  probe.corp.example-lab.com
+host key, not a slug:  "host": "somemachine"
+credential assignment:  api_key = abcdefghijklmnopqrstuvwxyz012345
+bearer credential:      Authorization: Bearer abcdefghijklmnopqrstuvwxyz0123456789
+AWS key id (the vendor's documented example): AKIAIOSFODNN7EXAMPLE

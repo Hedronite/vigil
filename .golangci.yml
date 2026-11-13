@@ -1,0 +1,27 @@
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  default: standard
+  enable:
+    - depguard
+    - misspell
+  settings:
+    depguard:
+      rules:
+        # Applies to every non-test file. Tests may exec and may import the
+        # schema validator; the binary may not.
+        runtime:
+          files:
+            - "!$test"
+          deny:
+            - pkg: os/exec
+              desc: Vigil never runs programs; writers publish files and Vigil reads them.
+            - pkg: github.com/santhosh-tekuri/jsonschema
+              desc: The schema validator is for tests only and must not link into the binary.
+
+formatters:
+  enable:
+    - gofmt

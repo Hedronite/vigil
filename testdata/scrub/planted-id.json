@@ -1,0 +1,6 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/SomeoneElse/vigil/schema/summary.json",
+  "note": "planted: an $id outside the two allowed repos, and a bare documentation domain",
+  "contact": "ops.example.com"
+}
