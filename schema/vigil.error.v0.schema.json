@@ -5,9 +5,9 @@
   "description": "Every non-200 response body from the listener. Missing and wrong tokens produce byte-identical bodies, and no reason detail is ever echoed.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema", "error"],
+  "required": ["apiVersion", "error"],
   "properties": {
-    "schema": { "const": "vigil.error/v0" },
+    "apiVersion": { "const": "vigil.error/v0" },
     "error": {
       "type": "object",
       "additionalProperties": false,

@@ -5,9 +5,9 @@
   "description": "The single document Vigil produces. Severity is combined from the named authorities' own verdicts; Vigil never derives severity from raw data. Additive within v0; consumers refuse unknown majors.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema", "generated_at", "overall", "verdicts", "hosts", "sources"],
+  "required": ["apiVersion", "generated_at", "overall", "verdicts", "hosts", "sources"],
   "properties": {
-    "schema": { "const": "vigil.summary/v0" },
+    "apiVersion": { "const": "vigil.summary/v0" },
     "generated_at": { "$ref": "#/$defs/timestamp" },
     "overall": {
       "description": "Worst severity across available verdicts, after the stale cap and the missing-authority cap. Null when no authority could be read.",
