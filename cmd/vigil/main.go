@@ -30,7 +30,7 @@ func main() {
 
 // runRecovered turns a panic into exit 6 so a crash never reads as a verdict.
 func runRecovered(ctx context.Context, args []string, stdout, stderr io.Writer) int {
-	return runRecoveredWith(func() int { return run(ctx, args, stdout, stderr, defaultHandlers()) }, stderr)
+	return runRecoveredWith(func() int { return run(ctx, args, stdout, stderr, liveHandlers()) }, stderr)
 }
 
 // runRecoveredWith runs f and, if it panics, prints one vigil.error/v0 line
