@@ -410,3 +410,67 @@ func TestNoTestOnlyPackagesInBinary(t *testing.T) {
 		}
 	}
 }
+
+// nonPortable lists the constructs that parse in Go but not in ECMA-262. Facet
+// and other consumers compile these patterns with their own engines, so a
+// schema that uses them fails outside Go even when this package validates.
+var nonPortable = []struct {
+	name string
+	re   *regexp.Regexp
+}{
+	{"an inline flag or an unsupported group extension", regexp.MustCompile(`\(\?[a-zA-Z<>=!(]`)},
+	{"a possessive quantifier", regexp.MustCompile(`(?:[*+?]|\{[0-9]+(?:,[0-9]*)?\})\+`)},
+	{"a POSIX character class", regexp.MustCompile(`\[:`)},
+	{"an anchor ECMA-262 does not define", regexp.MustCompile(`\\[AzZ]`)},
+	{"a quoted literal", regexp.MustCompile(`\\Q`)},
+}
+
+// TestSchemaPatternsAreECMA262 keeps every schema pattern usable by a consumer
+// that is not written in Go.
+func TestSchemaPatternsAreECMA262(t *testing.T) {
+	root := repoRoot(t)
+	paths, err := filepath.Glob(filepath.Join(root, "schema", "*.schema.json"))
+	if err != nil || len(paths) == 0 {
+		t.Fatalf("no schemas found: %v", err)
+	}
+	checked := 0
+	for _, path := range paths {
+		doc := loadJSON(t, path)
+		for _, pattern := range collectPatterns(doc) {
+			checked++
+			if _, err := regexp.Compile(pattern); err != nil {
+				t.Errorf("%s: %q does not compile: %v", filepath.Base(path), pattern, err)
+				continue
+			}
+			for _, rule := range nonPortable {
+				if rule.re.MatchString(pattern) {
+					t.Errorf("%s: %q uses %s, which is not ECMA-262", filepath.Base(path), pattern, rule.name)
+				}
+			}
+		}
+	}
+	if checked == 0 {
+		t.Fatal("no patterns found to check")
+	}
+}
+
+// collectPatterns returns every "pattern" string anywhere in a schema.
+func collectPatterns(v any) []string {
+	var out []string
+	switch t := v.(type) {
+	case map[string]any:
+		for k, val := range t {
+			if k == "pattern" {
+				if s, ok := val.(string); ok {
+					out = append(out, s)
+				}
+			}
+			out = append(out, collectPatterns(val)...)
+		}
+	case []any:
+		for _, val := range t {
+			out = append(out, collectPatterns(val)...)
+		}
+	}
+	return out
+}

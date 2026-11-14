@@ -5,9 +5,16 @@
   "description": "An ephemeral, informational record. Accepted only by an authenticated POST and never consulted for overall or sources[]. POST bodies carry apiVersion, source, kind, severity and optionally note and ttl; id and created_at are assigned by the server and must be absent from a request.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["apiVersion", "source", "kind", "severity"],
+  "required": [
+    "apiVersion",
+    "source",
+    "kind",
+    "severity"
+  ],
   "properties": {
-    "apiVersion": { "const": "vigil.signal/v0" },
+    "apiVersion": {
+      "const": "vigil.signal/v0"
+    },
     "id": {
       "description": "Server-assigned, 128-bit lowercase hex.",
       "type": "string",
@@ -16,17 +23,20 @@
     "source": {
       "description": "Caller-defined origin label, e.g. deploy. Dots and hyphens allowed; open vocabulary, shape-checked only.",
       "type": "string",
-      "pattern": "^[a-z][a-z0-9_.-]{0,63}$"
+      "pattern": "^[a-z][a-z0-9_.\\-]{0,63}$"
     },
     "kind": {
       "description": "Caller-defined event label, e.g. deploy.start. Dots and hyphens allowed; open vocabulary, shape-checked only.",
       "type": "string",
-      "pattern": "^[a-z][a-z0-9_.-]{0,63}$"
+      "pattern": "^[a-z][a-z0-9_.\\-]{0,63}$"
     },
     "severity": {
       "description": "Informational only. Deliberately not the GREEN/YELLOW/RED vocabulary.",
       "type": "string",
-      "enum": ["info", "notice"]
+      "enum": [
+        "info",
+        "notice"
+      ]
     },
     "created_at": {
       "description": "Server clock at acceptance, RFC 3339 UTC.",
