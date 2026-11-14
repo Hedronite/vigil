@@ -7,7 +7,11 @@
 #   scripts/scrub.sh --selftest      prove each rule fires on planted input
 #
 # Exit: 0 clean, 1 findings, 2 usage or internal error. The script fails
-# closed: any grep, sed or git call that errors makes the run exit 2, never 0.
+# closed: any grep, sed, git, open or redirect that errors makes the run
+# exit 2, never 0. Lists of paths are NUL-separated, so a name with an
+# accent, a quote or a newline is scanned like any other. The number of
+# paths scanned must equal the number listed. A tracked symlink or other
+# non-regular file is a finding: the scan never follows or skips it.
 #
 # Findings print as "path:line: [rule] message". The matched text is never
 # printed, so a leak does not also land in a public CI log.
@@ -17,41 +21,58 @@
 # planted input the self-test expects to fail.
 #
 # Coverage limits: the machine-name rule checks the values of "host",
-# "instance" and "id" keys against the public slugs, the product ids and
-# hex ids. The hostname rule treats any dotted name in a fixture as a
-# hostname, after stripping schema names, file names, version numbers and
-# the values of "kind" and "source" (open vocabularies that allow dots; the
-# TLD rule still runs over those). A real name placed under any other key
-# with no dot is not seen here; review covers that.
+# "instance" and "id" keys (any case, bare, single- or double-quoted) against
+# the public slugs, the product ids, 32-digit hex ids and a short list of
+# placeholders; an empty, list or block value is a finding. The hostname
+# rule treats any dotted name in a fixture as a hostname, after blanking
+# the exact schema URL values, "$id" values under the two Hedronite repos,
+# file names, version numbers and the values of "kind" and "source" (open
+# vocabularies that allow dots; the TLD rule still runs over those). Bytes
+# above 0x7f count as name characters, so an accented or lookalike name is
+# still a name. A real name placed under any other key with no dot is not
+# seen here; review covers that.
 #
 # testdata/scrub/ is pinned by content hash (PLANTED_PINS): a changed,
-# added or missing file there fails the scan, so nothing real can hide in
-# the directory the tree scan skips. Update the pins in the same commit as
-# any deliberate change to a planted file.
+# added, linked or missing file there fails the scan, so nothing real can
+# hide in the directory the tree scan skips. Update the pins in the same
+# commit as any deliberate change to a planted file.
 #
 # Binary files are scanned as text (grep -a).
 #
 # Written for bash 3.2 (macOS runners): no mapfile, no associative arrays, and
 # no process substitution, which leaks descriptors in a long loop there.
-# Every loop reads a plain temp file instead.
+# Every loop reads a plain temp file on an explicit descriptor (read -u), so
+# a failed open is caught at the exec and never reads as an empty list.
 
 set -u
 set -o pipefail
+export LC_ALL=C
+
+SELF_DIR=$(cd "$(dirname "$0")" && pwd) || exit 2
+SELF=$SELF_DIR/$(basename "$0")
 
 SLUGS="castle tower citadel apiary lathe box unmapped"
 # Ids that are not machines: the authorities, sources and backends.
 IDS_OK="simplex augur cubit scry grafana prom"
+# Placeholder values, exact and case-sensitive.
+PLACEHOLDERS="XYZ PLACEHOLDER EXAMPLE"
 
 PLANTED_PINS="planted-bad.txt:5c1ba7b6a28889d0581321057c5beaf2637ff6fca655340e85bcba664c61949c planted-id.json:43f52fbced451f761d49a4584cff16b5b89ce7c7cb3906e933979a15dcafeab4"
 
-# Deny-by-default hostname shape: two or more labels joined by dots.
-FQDN_ANY_RE='(^|[^A-Za-z0-9_.-])[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+)+([^A-Za-z0-9_-]|$)'
+# Deny-by-default hostname shape: two or more labels joined by dots. The
+# left edge allows a dot, so a leading-dot name (a cookie domain) matches.
+FQDN_ANY_RE='(^|[^A-Za-z0-9_-])[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+)+([^A-Za-z0-9_-]|$)'
 # Exact values the fixture hostname rule lets through (PM ruling, G1):
-#   the 2020-12 meta-schema URL, "$id" values under the two Hedronite repos
-#   the schemas live in, and the reserved example.invalid (not a listed TLD,
-#   so it never matches). Nothing else, including example.com.
-FQDN_STRIP_SCHEMA='s#https://json-schema\.org/draft/2020-12/schema##g'
-FQDN_STRIP_ID='s#"\$id"[[:space:]]*:[[:space:]]*"https://github\.com/Hedronite/(vigil|simplex)/[^"]*"##g'
+#   the 2020-12 meta-schema URL as a "$schema" value, and a "$id" value of
+#   the form https://github.com/Hedronite/{vigil,simplex}/schema/<file>.json.
+#   Both are anchored on the key and the closing quote, so nothing can ride
+#   along inside them. The reserved example.invalid never matches a rule.
+FQDN_STRIP_SCHEMA='s#"\$schema"[[:space:]]*:[[:space:]]*"https://json-schema\.org/draft/2020-12/schema"##g'
+FQDN_STRIP_ID='s#"\$id"[[:space:]]*:[[:space:]]*"https://github\.com/Hedronite/(vigil|simplex)/schema/[A-Za-z0-9_.-]+\.json"##g'
+# Key/value pairs for the machine-name rule. Bare, single- or double-quoted
+# keys; any case (grep -i). The edge excludes "$", ":" and "/" so "$id",
+# "localhost:" and URLs are not keys.
+HOST_KEY_RE='(^|[^A-Za-z0-9_.$:/"'"'"'-])["'"'"']?(host|instance|id)["'"'"']?[[:space:]]*:[[:space:]]*[^[:space:]]*'
 
 RULE_TAGS=()
 RULE_SCOPES=()
@@ -83,17 +104,19 @@ add_rule token-aws all -E 'AKIA[0-9A-Z]{16}' "AWS key id shape"
 add_rule token-privkey all -E '-----BEGIN [A-Z ]*PRIVATE KEY-----' "private key block"
 add_rule token-bearer all -E '[Bb]earer[[:space:]]+[A-Za-z0-9._~+/-]{24,}' "bearer credential"
 add_rule token-generic all -Ei '(token|secret|passw(or)?d|api[_-]?key)["'"'"']?[[:space:]]*[:=][[:space:]]*["'"'"']?[A-Za-z0-9+_-]{32,}' "credential assignment"
-add_rule fqdn fixture -Ei '(^|[^A-Za-z0-9.-])[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?(\.[A-Za-z0-9-]+)*\.(com|net|org|io|dev|app|ai|co|me|xyz|cloud|local|lan|internal|corp|home|arpa)([^A-Za-z0-9-]|$)' "hostname in fixture or example"
+add_rule fqdn fixture -Ei '(^|[^A-Za-z0-9-])[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?(\.[A-Za-z0-9-]+)*\.(com|net|org|io|dev|app|ai|co|me|xyz|cloud|local|lan|internal|corp|home|arpa)([^A-Za-z0-9-]|$)' "hostname in fixture or example"
 
 FINDINGS=0
 INTERNAL=0
+GREP_RC=0
+QUIET=0
 TAGS_SEEN=" "
 TMPD=$(mktemp -d "${TMPDIR:-/tmp}/scrub.XXXXXX") || exit 2
 trap 'rm -rf "$TMPD"' EXIT
 
 # Names that are not hosts, blanked before the deny-by-default hostname
 # check. Each command runs twice so adjacent tokens both strip.
-cat >"$TMPD/strip.sed" <<'SED'
+cat >"$TMPD/strip.sed" <<'SED' || exit 2
 s#([0-9]{2})\.[0-9]{1,9}Z#\1Z#g
 s#(^|[^A-Za-z0-9_.-])([A-Za-z0-9_-]+\.)*example\.invalid([^A-Za-z0-9_-]|$)#\1\3#g
 s#(^|[^A-Za-z0-9_.-])([A-Za-z0-9_-]+\.)*example\.invalid([^A-Za-z0-9_-]|$)#\1\3#g
@@ -107,7 +130,8 @@ s#(^|[^A-Za-z0-9_.-])v?[0-9]+(\.[0-9]+)+([^A-Za-z0-9_-]|$)#\1\3#g
 SED
 
 report() { # path line tag message
-	printf '%s:%s: [%s] %s\n' "$1" "$2" "$3" "$4"
+	local p=${1//[[:cntrl:]]/?}
+	[ "$QUIET" = 1 ] || printf '%s:%s: [%s] %s\n' "$p" "$2" "$3" "$4"
 	FINDINGS=$((FINDINGS + 1))
 	case "$TAGS_SEEN" in *" $3 "*) ;; *) TAGS_SEEN="$TAGS_SEEN$3 " ;; esac
 }
@@ -126,37 +150,53 @@ is_fixture_path() {
 }
 
 in_list() { # word list
+	local w
 	for w in $2; do [ "$w" = "$1" ] && return 0; done
 	return 1
 }
 
-# grep_to OUT desc ARGS...: grep into OUT; exit 1 (no match) is fine, 2+ is an error.
+# grep_to OUT desc ARGS...: grep into OUT. Exit 1 (no match) is fine; 2 or
+# more is an error. The rc is captured inside the redirected group, so a
+# redirect that fails to open leaves it at 99: that is an error too, never
+# a no-match.
 grep_to() {
-	local out=$1 desc=$2 rc
+	local out=$1 desc=$2
 	shift 2
-	grep "$@" >"$out" 2>"$TMPD/err"
-	rc=$?
-	if [ "$rc" -gt 1 ]; then
+	GREP_RC=99
+	{
+		grep "$@"
+		GREP_RC=$?
+	} >"$out" 2>"$TMPD/err"
+	if [ "$GREP_RC" -gt 1 ]; then
 		internal "grep failed ($desc)"
-		: >"$out"
+		: >"$out" 2>/dev/null
 	fi
 }
 
 # emit_hits FILE shown tag message: report the line number of each hit in FILE.
 emit_hits() {
-	local hit
-	while IFS= read -r hit; do
-		report "$2" "${hit%%:*}" "$3" "$4"
-	done <"$1"
+	local hit lines=() n=0 i
+	exec 5<"$1" || { internal "cannot read the hit list ($2)"; return; }
+	while IFS= read -r -u 5 hit; do
+		lines[n]=$hit
+		n=$((n + 1))
+	done
+	exec 5<&-
+	i=0
+	while [ "$i" -lt "$n" ]; do
+		report "$2" "${lines[$i]%%:*}" "$3" "$4"
+		i=$((i + 1))
+	done
 }
 
 # scan_fqdn file shown message flags tld_regex
 # Two passes, one report per line. Pass 1: the TLD list, run over text with
 # only the exact allowlist blanked (so it also covers kind and source values).
 # Pass 2: any dotted name, run after the non-host names are blanked too.
+# Bytes above 0x7f become "x" first, so an accented name is still a name.
 scan_fqdn() {
 	local f=$1 shown=$2 msg=$3 flags=$4 re=$5
-	if ! sed -E -e "$FQDN_STRIP_SCHEMA" -e "$FQDN_STRIP_ID" -- "$f" >"$TMPD/s1" 2>"$TMPD/err"; then
+	if ! sed -E -e "$FQDN_STRIP_SCHEMA" -e "$FQDN_STRIP_ID" -- "$f" 2>"$TMPD/err" | tr '\200-\377' 'x' >"$TMPD/s1"; then
 		internal "sed failed ($shown)"
 		return
 	fi
@@ -195,59 +235,128 @@ scan_file() {
 	if [ "$fixture" = 1 ]; then scan_host_keys "$f" "$shown"; fi
 }
 
-# Values of host, instance and id keys: a public slug, a product id, a
-# 32-digit hex id, or an upper-case placeholder.
+# A host, instance or id value is a public slug (any case), a product id, a
+# 32-digit hex id, or one of the exact placeholders.
 host_value_ok() {
-	in_list "$1" "$SLUGS $IDS_OK" && return 0
-	local re='^([0-9a-f]{32}|[A-Z0-9_]+)$'
-	[[ $1 =~ $re ]]
+	local v=$1 w ok=1 re='^[0-9a-f]{32}$'
+	in_list "$v" "$PLACEHOLDERS" && return 0
+	[[ $v =~ $re ]] && return 0
+	shopt -s nocasematch
+	for w in $SLUGS $IDS_OK; do
+		if [[ $v == "$w" ]]; then ok=0; fi
+	done
+	shopt -u nocasematch
+	return "$ok"
 }
 
 scan_host_keys() { # path displaypath
-	local hit ln val
-	grep_to "$TMPD/hostkeys" "$2 host-slug" -a -n -o -E -e '(^|[^A-Za-z0-9_.$-])"?(host|instance|id)"?[[:space:]]*:[[:space:]]*"?[A-Za-z0-9_.:-]+' -- "$1"
-	while IFS= read -r hit; do
+	local hit ln v lines=() n=0 i
+	grep_to "$TMPD/hostkeys" "$2 host-slug" -a -n -o -i -E -e "$HOST_KEY_RE" -- "$1"
+	exec 4<"$TMPD/hostkeys" || { internal "cannot read the host-key list ($2)"; return; }
+	while IFS= read -r -u 4 hit; do
+		lines[n]=$hit
+		n=$((n + 1))
+	done
+	exec 4<&-
+	i=0
+	while [ "$i" -lt "$n" ]; do
+		hit=${lines[$i]}
+		i=$((i + 1))
 		ln=${hit%%:*}
-		val=${hit#*:}
-		val=$(printf '%s' "$val" | sed -E 's/^.*(host|instance|id)"?[[:space:]]*:[[:space:]]*"?//')
-		host_value_ok "$val" || report "$2" "$ln" host-slug "host or id value is not a public slug or known id"
-	done <"$TMPD/hostkeys"
+		v=${hit#*:}   # drop the line number
+		v=${v#*:}     # drop the key; the value is what follows the first colon
+		v=${v#"${v%%[![:space:]]*}"}   # trim leading space
+		while [ -n "$v" ]; do
+			case ${v: -1} in , | \} | \]) v=${v%?} ;; *) break ;; esac
+		done
+		case $v in \"*\" | \'*\') [ "${#v}" -ge 2 ] && [ "${v:0:1}" = "${v: -1}" ] && v=${v:1:${#v}-2} ;; esac
+		if [ -z "$v" ]; then
+			report "$2" "$ln" host-slug "host or id key has an empty, list or block value"
+		elif ! host_value_ok "$v"; then
+			report "$2" "$ln" host-slug "host or id value is not a public slug or known id"
+		fi
+	done
 }
 
-# scan_list LISTFILE mode: mode "tracked" decides fixture scope per path,
-# mode "fixtures" treats every file as a fixture.
+# count_nul LISTFILE: print the number of NUL-terminated entries.
+count_nul() {
+	local n
+	n=$(tr -cd '\0' <"$1" | wc -c) || return 1
+	n=${n// /}
+	[[ $n =~ ^[0-9]+$ ]] || return 1
+	printf '%s' "$n"
+}
+
+# scan_list LISTFILE mode: LISTFILE holds NUL-terminated paths. Mode
+# "tracked" decides fixture scope per path, mode "fixtures" treats every
+# file as a fixture. Every listed path is accounted for: scanned, reported,
+# or skipped as the planted directory (checked on its own). The count must
+# match, or the run is an internal error.
 scan_list() {
-	local f mode=$2
-	while IFS= read -r f; do
-		[ -f "$f" ] || continue
+	local lst=$1 mode=$2 f expected handled=0
+	expected=$(count_nul "$lst") || { internal "cannot count the file list"; return; }
+	exec 3<"$lst" || { internal "cannot open the file list"; return; }
+	while IFS= read -r -d '' -u 3 f; do
+		handled=$((handled + 1))
+		if [ "$mode" = tracked ]; then
+			case "$f" in testdata/scrub/*) continue ;; esac
+		fi
+		if [ -L "$f" ]; then
+			report "$f" 1 symlink "symbolic link is not scanned; replace it with the file"
+			continue
+		fi
+		if [ -d "$f" ]; then
+			report "$f" 1 symlink "directory or submodule entry is not scanned"
+			continue
+		fi
+		if [ ! -e "$f" ]; then
+			internal "a listed path is missing on disk (restore or stage the deletion)"
+			continue
+		fi
+		if [ ! -f "$f" ]; then
+			report "$f" 1 symlink "not a regular file"
+			continue
+		fi
 		if [ "$mode" = fixtures ]; then
 			scan_file "$f" "$f" 1
+		elif is_fixture_path "$f"; then
+			scan_file "$f" "$f" 1
 		else
-			case "$f" in testdata/scrub/*) continue ;; esac
-			if is_fixture_path "$f"; then scan_file "$f" "$f" 1; else scan_file "$f" "$f" 0; fi
+			scan_file "$f" "$f" 0
 		fi
-	done <"$1"
+	done
+	exec 3<&-
+	if [ "$handled" -ne "$expected" ]; then
+		internal "accounted for $handled of $expected listed paths"
+	fi
 }
 
 sha256_of() {
 	if command -v shasum >/dev/null 2>&1; then
-		shasum -a 256 "$1" | cut -d' ' -f1
+		shasum -a 256 -- "$1" | cut -d' ' -f1
 	else
-		sha256sum "$1" | cut -d' ' -f1
+		sha256sum -- "$1" | cut -d' ' -f1
 	fi
 }
 
 # check_planted_pins DIR: DIR must hold exactly the pinned files, unchanged.
 check_planted_pins() {
-	local d=$1 f name want got pin seen=" " lst
+	local d=$1 f name want got pin seen=" " lst expected handled=0 re='^[0-9a-f]{64}$'
 	if [ ! -d "$d" ]; then
 		report "$d" 1 planted-pin "planted directory is missing"
 		return
 	fi
 	lst=$(mktemp "$TMPD/list.XXXXXX") || { internal "mktemp"; return; }
-	find "$d" -type f >"$lst" 2>"$TMPD/err" || { internal "find failed ($d)"; return; }
-	while IFS= read -r f; do
+	find "$d" ! -type d -print0 >"$lst" 2>"$TMPD/err" || { internal "find failed ($d)"; return; }
+	expected=$(count_nul "$lst") || { internal "cannot count the planted list"; return; }
+	exec 6<"$lst" || { internal "cannot open the planted list"; return; }
+	while IFS= read -r -d '' -u 6 f; do
+		handled=$((handled + 1))
 		name=${f#"$d"/}
+		if [ -L "$f" ] || [ ! -f "$f" ]; then
+			report "$f" 1 planted-pin "link or special file in the planted directory"
+			continue
+		fi
 		want=""
 		for pin in $PLANTED_PINS; do
 			[ "${pin%%:*}" = "$name" ] && want=${pin#*:}
@@ -257,9 +366,12 @@ check_planted_pins() {
 			continue
 		fi
 		got=$(sha256_of "$f") || { internal "hash failed ($f)"; continue; }
+		[[ $got =~ $re ]] || { internal "hash output malformed ($f)"; continue; }
 		[ "$got" = "$want" ] || report "$f" 1 planted-pin "planted file changed"
 		seen="$seen$name "
-	done <"$lst"
+	done
+	exec 6<&-
+	[ "$handled" -eq "$expected" ] || internal "accounted for $handled of $expected planted paths"
 	for pin in $PLANTED_PINS; do
 		case "$seen" in *" ${pin%%:*} "*) ;; *) report "$d/${pin%%:*}" 1 planted-pin "planted file is missing" ;; esac
 	done
@@ -268,39 +380,144 @@ check_planted_pins() {
 scan_tracked() {
 	local lst
 	lst=$(mktemp "$TMPD/list.XXXXXX") || { internal "mktemp"; return; }
-	git ls-files >"$lst" 2>"$TMPD/err" || { internal "git ls-files failed"; return; }
+	git -c core.quotePath=false ls-files -z >"$lst" 2>"$TMPD/err" || { internal "git ls-files failed"; return; }
+	if [ ! -s "$lst" ]; then
+		internal "git lists no tracked files"
+		return
+	fi
 	scan_list "$lst" tracked
 }
 
 scan_dir() { # dir: every file is a fixture
 	local lst
 	lst=$(mktemp "$TMPD/list.XXXXXX") || { internal "mktemp"; return; }
-	find "$1" -type f >"$lst" 2>"$TMPD/err" || { internal "find failed ($1)"; return; }
-	LC_ALL=C sort -o "$lst" "$lst" || { internal "sort failed"; return; }
+	find "$1" ! -type d -print0 >"$lst" 2>"$TMPD/err" || { internal "find failed ($1)"; return; }
 	scan_list "$lst" fixtures
 }
 
 # Only example.overlay.yaml may be tracked; real overlays hold addresses.
 check_overlay() { # repo root
-	local f base lst
+	local f base lst expected handled=0
 	lst=$(mktemp "$TMPD/list.XXXXXX") || { internal "mktemp"; return; }
-	git -C "$1" ls-files >"$lst" 2>"$TMPD/err" || { internal "git ls-files failed ($1)"; return; }
-	while IFS= read -r f; do
+	git -C "$1" -c core.quotePath=false ls-files -z >"$lst" 2>"$TMPD/err" || { internal "git ls-files failed ($1)"; return; }
+	expected=$(count_nul "$lst") || { internal "cannot count the overlay list"; return; }
+	exec 7<"$lst" || { internal "cannot open the overlay list"; return; }
+	shopt -s nocasematch
+	while IFS= read -r -d '' -u 7 f; do
+		handled=$((handled + 1))
 		base=${f##*/}
 		case "$base" in
 		example.overlay.yaml) ;;
 		*.overlay.yaml | *.overlay.yml) report "$f" 1 overlay "overlay file is tracked" ;;
 		esac
-	done <"$lst"
+	done
+	shopt -u nocasematch
+	exec 7<&-
+	[ "$handled" -eq "$expected" ] || internal "accounted for $handled of $expected overlay paths"
+}
+
+# run_dir_rc DIR: scan DIR as fixtures in a subshell; print the rc
+# (0 clean, 1 findings, 2 internal error) of what the scan decided.
+rc_of_state() {
+	if [ "$INTERNAL" -ne 0 ]; then return 2; fi
+	if [ "$FINDINGS" -gt 0 ]; then return 1; fi
+	return 0
+}
+
+dir_rc() { # dir
+	(
+		FINDINGS=0
+		INTERNAL=0
+		scan_dir "$1"
+		rc_of_state
+	) >"$TMPD/dir_rc.out" 2>&1
+}
+
+tracked_rc() { # repo dir
+	(
+		cd "$1" || exit 2
+		FINDINGS=0
+		INTERNAL=0
+		scan_tracked
+		check_overlay .
+		rc_of_state
+	) >"$TMPD/tracked_rc.out" 2>&1
+}
+
+# canary: before any real scan, run the scan machinery on a file that must
+# produce a CGNAT, a hostname and a machine-name finding, and on a planted
+# directory and an overlay that must each be a finding. If the shell cannot
+# open descriptors, redirect, or fork (a low ulimit -n made bash drop
+# redirections and report clean), the canary misses and the run exits 2
+# before it can say clean about the real tree.
+canary_fail() {
+	echo "scrub: self-check failed ($1); the environment cannot run the scan, refusing to report" >&2
+	exit 2
+}
+
+canary() {
+	local d=$TMPD/canary t addr
+	addr="100.64.$((6 + 6)).34"
+	QUIET=1
+	FINDINGS=0
+	INTERNAL=0
+	TAGS_SEEN=" "
+	mkdir "$d" "$d/dir" "$d/pin" "$d/repo" || canary_fail "mkdir"
+	printf '{"host": "somemachine"}\nx = "%s"\nprom.corp.de\n' "$addr" >"$d/dir/c.json" || canary_fail "write"
+	scan_dir "$d/dir"
+	[ "$INTERNAL" -eq 0 ] || canary_fail "scan"
+	for t in cgnat fqdn host-slug; do
+		case "$TAGS_SEEN" in *" $t "*) ;; *) canary_fail "$t did not fire" ;; esac
+	done
+	printf 'x\n' >"$d/pin/stray.txt" || canary_fail "write"
+	FINDINGS=0
+	check_planted_pins "$d/pin"
+	[ "$INTERNAL" -eq 0 ] && [ "$FINDINGS" -ge 1 ] || canary_fail "planted-pin did not fire"
+	git init -q "$d/repo" || canary_fail "git"
+	: >"$d/repo/prod.overlay.yaml" || canary_fail "write"
+	git -C "$d/repo" add -A || canary_fail "git"
+	FINDINGS=0
+	check_overlay "$d/repo"
+	[ "$INTERNAL" -eq 0 ] && [ "$FINDINGS" -ge 1 ] || canary_fail "overlay did not fire"
+	QUIET=0
+	FINDINGS=0
+	INTERNAL=0
+	TAGS_SEEN=" "
+}
+
+# low_fd_rc N MODE [ARG]: run this script under ulimit -n N and print its
+# exit code. A 20 s watchdog kills a run that spins and prints 124.
+low_fd_rc() {
+	local n=$1 mode=$2 arg=${3:-} pid wd rc
+	(
+		ulimit -n "$n" || exit 99
+		if [ "$mode" = tree ]; then
+			SCRUB_ROOT=$arg exec bash "$SELF" tree
+		fi
+		exec bash "$SELF" "$mode" "$arg"
+	) >"$TMPD/low.out" 2>&1 &
+	pid=$!
+	( sleep 20; kill -9 "$pid" 2>/dev/null ) >/dev/null 2>&1 &
+	wd=$!
+	wait "$pid"
+	rc=$?
+	kill "$wd" 2>/dev/null
+	if [ "$rc" -eq 137 ]; then rc=124; fi
+	rm -f "$TMPD/low.out"
+	printf '%s' "$rc"
 }
 
 selftest() {
-	local fail=0 tmp want p i
+	local fail=0 tmp want p i n rc cg ten
 	tmp=$(mktemp -d "${TMPDIR:-/tmp}/scrub-selftest.XXXXXX") || return 2
 	trap 'rm -rf "$tmp"' RETURN
 	FINDINGS=0
 	INTERNAL=0
 	TAGS_SEEN=" "
+	# Address literals are built here so this file never holds one.
+	cg="100.64.$((6 + 6)).34"
+	ten="1$((0 * 7))"
+	ten="$ten.1.2.3"
 
 	# 1. The planted files must fail, and every file rule must fire on them.
 	if [ ! -d testdata/scrub ]; then
@@ -360,17 +577,22 @@ example.invalid host.example.invalid
 "$id": "https://github.com/Hedronite/vigil/schema/vigil.summary.v0.schema.json"
   "$id":   "https://github.com/Hedronite/simplex/schema/simplex.probe.v0.schema.json"
 host: castle
+Host: Castle
+HOST: 'tower'
 "host": "box"
+'host': 'box'
 "instance": "lathe"
 "id": "simplex"
 "id": "00000000000000000000000000000000"
 "id": "XYZ"
+- id: apiary
+{"Id": "citadel", "host": "box"}
 "kind": "deploy.start", "source": "ci.build"
 "generated_at": "2026-11-13T18:00:00.123456Z"
 tool 1.27.3, schema v0.1.0, file config.yaml and document.json
 "apiVersion": "vigil.summary/v0", "x": "simplex.probe/v0"
 listen: localhost:10082
-{"hostname": "x", "ghost": "y", "localhost": "z"}
+{"hostname": "x", "ghost": "y", "localhost": "z", "hosts": ["castle"]}
 EOF
 	scan_dir "$tmp/clean" >"$tmp/clean.out"
 	if [ "$FINDINGS" -ne 0 ] || [ "$INTERNAL" -ne 0 ]; then
@@ -406,7 +628,7 @@ EOF
 	INTERNAL=0
 
 	# 5b. The planted directory is pinned: pristine passes; a changed, an
-	# extra, or a missing file fails.
+	# extra, a linked or a missing file fails.
 	FINDINGS=0
 	check_planted_pins testdata/scrub >/dev/null
 	if [ "$FINDINGS" -ne 0 ]; then
@@ -424,7 +646,12 @@ EOF
 	FINDINGS=0
 	check_planted_pins "$tmp/pin" >/dev/null
 	[ "$FINDINGS" -ge 1 ] || { echo "selftest FAIL: an extra planted file was not caught"; fail=1; }
-	rm "$tmp/pin/parked.txt" "$tmp/pin/planted-id.json"
+	rm "$tmp/pin/parked.txt"
+	ln -s nowhere "$tmp/pin/link"
+	FINDINGS=0
+	check_planted_pins "$tmp/pin" >/dev/null
+	[ "$FINDINGS" -ge 1 ] || { echo "selftest FAIL: a link in the planted directory was not caught"; fail=1; }
+	rm "$tmp/pin/link" "$tmp/pin/planted-id.json"
 	FINDINGS=0
 	check_planted_pins "$tmp/pin" >/dev/null
 	[ "$FINDINGS" -ge 1 ] || { echo "selftest FAIL: a missing planted file was not caught"; fail=1; }
@@ -449,8 +676,113 @@ EOF
 		fail=1
 	fi
 
+	# 7. Tracked paths with accents, quotes or newlines are scanned (git
+	# prints such names C-quoted unless told not to); links are findings.
+	mkdir "$tmp/trk"
+	git init -q "$tmp/trk/ok" || return 2
+	mkdir "$tmp/trk/ok/internal"
+	printf 'package x\n' >"$tmp/trk/ok/internal/plain.go"
+	git -C "$tmp/trk/ok" add -A
+	tracked_rc "$tmp/trk/ok"
+	[ "$?" -eq 0 ] || { echo "selftest FAIL: a clean tracked tree did not scan clean"; cat "$TMPD/tracked_rc.out"; fail=1; }
+	i=0
+	for want in $'internal/caf\303\251.go' 'internal/a"b.go' $'internal/a\nb.go' 'internal/sp ace.go' '-dash.go'; do
+		i=$((i + 1))
+		git init -q "$tmp/trk/n$i" || return 2
+		mkdir -p "$tmp/trk/n$i/internal"
+		printf 'x = "%s"\n' "$cg" >"$tmp/trk/n$i/$want"
+		git -C "$tmp/trk/n$i" add -A
+		tracked_rc "$tmp/trk/n$i"
+		[ "$?" -eq 1 ] || { echo "selftest FAIL: an address in a tracked file with an odd name ($i) was not a finding"; fail=1; }
+	done
+	git init -q "$tmp/trk/ov" || return 2
+	: >"$tmp/trk/ov/prod-caf$(printf '\303\251').overlay.yaml"
+	git -C "$tmp/trk/ov" add -A
+	tracked_rc "$tmp/trk/ov"
+	[ "$?" -eq 1 ] || { echo "selftest FAIL: an overlay with an accented name was not a finding"; fail=1; }
+	git init -q "$tmp/trk/dl" || return 2
+	ln -s "$ten" "$tmp/trk/dl/dangling"
+	git -C "$tmp/trk/dl" add -A
+	tracked_rc "$tmp/trk/dl"
+	[ "$?" -eq 1 ] || { echo "selftest FAIL: a tracked dangling symlink was not a finding"; fail=1; }
+	git init -q "$tmp/trk/ln" || return 2
+	printf 'ok\n' >"$tmp/trk/ln/real.txt"
+	ln -s real.txt "$tmp/trk/ln/alias.txt"
+	git -C "$tmp/trk/ln" add -A
+	tracked_rc "$tmp/trk/ln"
+	[ "$?" -eq 1 ] || { echo "selftest FAIL: a tracked symlink to a file was not a finding"; fail=1; }
+
+	# 8. Each shape below must be a finding in a fixture directory.
+	i=0
+	while IFS= read -r want; do
+		i=$((i + 1))
+		mkdir "$tmp/shape$i"
+		printf '%s\n' "$want" >"$tmp/shape$i/case.json"
+		dir_rc "$tmp/shape$i"
+		[ "$?" -eq 1 ] || { echo "selftest FAIL: shape $i passed the scrub: $(printf '%s' "$want" | tr -c '[:print:]' '?' | cut -c1-6)..."; fail=1; }
+	done <<'EOF'
+{"domain": ".prom.corp.de"}
+{"domain": ".prom.corp.com"}
+{"domain": ".prom.lab.de"}
+host: 'somemachine'
+{"Host": "somemachine"}
+HOST: somemachine
+{"host": "SOMEMACHINE"}
+{"host": 'somemachine'}
+{"id": ["somemachine"]}
+{"id": "some machine"}
+{"id":
+{"$schema": "https://json-schema.org/draft/2020-12/schema.prom.corp.de"}
+{"$schema": "https://json-schema.org/draft/2020-12/schema/x"}
+{"url": "https://json-schema.org/draft/2020-12/schema"}
+{"$id": "https://github.com/Hedronite/vigil/@prom.corp.de/x"}
+{"$id": "https://github.com/Hedronite/vigil/schema/v0/x.json"}
+{"$id": "https://github.com/Hedronite/vigil/schema/x.json.prom.corp.de"}
+{"$id": "https://github.com/Hedronite/vigil/other/x.json"}
+{"$id": "https://github.com/Hedronite/vigil/schema/x.json", "n": "prom.corp.de"}
+EOF
+	# The accent shape above is written as a literal here: build it for real.
+	mkdir "$tmp/accent"
+	printf '{"x": "caf\303\251.com"}\n' >"$tmp/accent/case.json"
+	dir_rc "$tmp/accent"
+	[ "$?" -eq 1 ] || { echo "selftest FAIL: an accented hostname passed the scrub"; fail=1; }
+	mkdir "$tmp/yamllist"
+	printf 'host:\n  - somemachine\n' >"$tmp/yamllist/case.yaml"
+	dir_rc "$tmp/yamllist"
+	[ "$?" -eq 1 ] || { echo "selftest FAIL: a YAML list under host: passed the scrub"; fail=1; }
+	mkdir "$tmp/lnk"
+	ln -s nowhere "$tmp/lnk/alias.json"
+	dir_rc "$tmp/lnk"
+	[ "$?" -eq 1 ] || { echo "selftest FAIL: a symlink in a scanned directory was not a finding"; fail=1; }
+
+	# 9. Fail closed at a low descriptor limit. A planted address must never
+	# scan clean, whatever the limit is: a finding (1) or an internal error
+	# (2) passes; a clean exit (0) or a run that has to be killed (124)
+	# fails. Run through the real entry points, tree and --scan-dir.
+	mkdir "$tmp/ul"
+	printf 'x = "%s"\n' "$cg" >"$tmp/ul/p.go"
+	git init -q "$tmp/ulrepo" || return 2
+	mkdir "$tmp/ulrepo/testdata"
+	cp -R testdata/scrub "$tmp/ulrepo/testdata/scrub"
+	printf 'x = "%s"\n' "$cg" >"$tmp/ulrepo/p.go"
+	git -C "$tmp/ulrepo" add -A
+	n=4
+	while [ "$n" -le 40 ]; do
+		rc=$(low_fd_rc "$n" --scan-dir "$tmp/ul")
+		if [ "$rc" = 0 ] || [ "$rc" = 124 ]; then
+			echo "selftest FAIL: --scan-dir read a planted address as clean, or spun, at ulimit -n $n (exit $rc)"
+			fail=1
+		fi
+		rc=$(low_fd_rc "$n" tree "$tmp/ulrepo")
+		if [ "$rc" = 0 ] || [ "$rc" = 124 ]; then
+			echo "selftest FAIL: a tree scan read a planted address as clean, or spun, at ulimit -n $n (exit $rc)"
+			fail=1
+		fi
+		n=$((n + 1))
+	done
+
 	if [ "$fail" -eq 0 ]; then
-		echo "selftest ok: every rule fires on planted input, clean control passes, large and missing trees fail closed"
+		echo "selftest ok: every rule fires on planted input, clean control passes, odd paths and links are findings, low descriptor limits never read as clean"
 		return 0
 	fi
 	return 1
@@ -469,10 +801,12 @@ finish() {
 }
 
 cmd=${1:-tree}
-cd "$(dirname "$0")/.." || exit 2
+# SCRUB_ROOT is for the self-test: it points the tree scan at a throwaway repo.
+cd "${SCRUB_ROOT:-$SELF_DIR/..}" || exit 2
 
 case "$cmd" in
 tree)
+	canary
 	scan_tracked
 	check_overlay .
 	check_planted_pins testdata/scrub
@@ -483,6 +817,7 @@ tree)
 		echo "usage: scrub.sh --scan-dir DIR" >&2
 		exit 2
 	}
+	canary
 	scan_dir "$2"
 	finish
 	;;

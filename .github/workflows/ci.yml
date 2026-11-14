@@ -74,8 +74,10 @@ jobs:
         shell: bash
         run: |
           scripts/scrub.sh --selftest
-          if scripts/scrub.sh --scan-dir testdata/scrub >/dev/null; then
-            echo "planted input passed the scrub" >&2
+          rc=0
+          scripts/scrub.sh --scan-dir testdata/scrub >/dev/null || rc=$?
+          if [ "$rc" -ne 1 ]; then
+            echo "planted input must produce findings (exit 1), got exit $rc" >&2
             exit 1
           fi
 
