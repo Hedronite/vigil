@@ -1,0 +1,86 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - "v0/**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GOLANGCI_LINT_VERSION: v2.15.0
+  GOVULNCHECK_VERSION: v1.9.0
+
+jobs:
+  check:
+    name: check (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: false
+
+      - name: Toolchain matches the pin in go.mod
+        shell: bash
+        run: |
+          want=$(awk '$1=="toolchain"{print $2}' go.mod)
+          got=$(go env GOVERSION)
+          echo "want=$want got=$got"
+          test "$want" = "$got"
+
+      - name: Install lint and vulnerability tools
+        shell: bash
+        run: |
+          go install "github.com/golangci/golangci-lint/v2/cmd/golangci-lint@${GOLANGCI_LINT_VERSION}"
+          go install "golang.org/x/vuln/cmd/govulncheck@${GOVULNCHECK_VERSION}"
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: golangci-lint (depguard included)
+        run: golangci-lint run ./...
+
+      - name: govulncheck
+        run: govulncheck ./...
+
+      - name: Tests (race, shuffled)
+        run: go test -race -shuffle=on -count=1 ./...
+
+      - name: Scrub tracked files
+        shell: bash
+        run: scripts/scrub.sh
+
+      - name: Scrub self-test (planted input must fail)
+        shell: bash
+        run: |
+          scripts/scrub.sh --selftest
+          rc=0
+          scripts/scrub.sh --scan-dir testdata/scrub >/dev/null || rc=$?
+          if [ "$rc" -ne 1 ]; then
+            echo "planted input must produce findings (exit 1), got exit $rc" >&2
+            exit 1
+          fi
+
+      - name: depguard self-test
+        shell: bash
+        run: scripts/depguard-selftest.sh

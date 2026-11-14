@@ -1,0 +1,24 @@
+# Build output
+/vigil
+/dist/
+*.test
+*.out
+coverage.txt
+
+# Private overlays hold real addresses and never enter the tree.
+# Only the synthetic example is tracked.
+*.overlay.yaml
+!example.overlay.yaml
+
+# Secrets and token files
+*.token
+*.key
+*.pem
+.env
+.env.*
+
+# Editor and OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
