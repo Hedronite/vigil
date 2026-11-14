@@ -10,13 +10,16 @@ An authority is a tool that publishes its own verdict document: Simplex now, Aug
 
 Severity order is GREEN < YELLOW < RED.
 
+**The rule, exactly.** `overall` is the worst severity among the readable verdicts in `verdicts[]`, after two caps and nothing else. The stale cap: a stale verdict counts as at least YELLOW. The missing-authority cap: while any configured authority is unavailable, `overall` is at least YELLOW. If no authority is readable, `overall` is null.
+
 | Rule | Statement | Fixture |
 | --- | --- | --- |
-| Worst of | `overall` is the worst severity among available verdicts, after the two caps below. One authority: `overall` equals that authority's own `overall`, byte for byte. | `simplex-green`, `simplex-yellow-augur-red` |
-| Stale cap | A verdict whose `generated_at` is older than `stale_after` (default 120s, per-authority override) has state `stale` and counts as at least YELLOW. GREEN rises to YELLOW; YELLOW and RED stay. The verdict keeps the severity the authority published and gains the reason `source_stale`. This is the only change Vigil makes to a verdict. | `simplex-stale-green` |
+| Worst of | `overall` is the worst severity among the readable verdicts, after the two caps below. With one authority and no cap in play, `overall` is that authority's published severity. With two, it is the worse of the two. | `simplex-green` (one authority, GREEN), `vantage-blind` (one authority, RED), `simplex-yellow-augur-red` (YELLOW and RED give RED) |
+| Stale cap | A verdict whose `generated_at` is older than `stale_after` (default 120s, per-authority override) has state `stale` and counts as at least YELLOW. GREEN rises to YELLOW; YELLOW and RED stay. The verdict keeps the severity the authority published and gains the reason `source_stale`; `overall` carries the capped value. So one authority does not always give `overall` equal to its published severity: a stale GREEN gives YELLOW. This is the only change Vigil makes to a verdict. | `simplex-stale-green` (verdict GREEN, `overall` YELLOW) |
 | Missing authority | An authority that is absent, unreadable, undecodable or on an unknown major has state `unavailable`, severity null, reason `authority_unavailable`. It leaves the worst-of, and `overall` cannot be better than YELLOW while it is missing. The cause goes in that source's `detail_code` (`source_unavailable`, `schema_major`). | `augur-unavailable` (Simplex green, Augur absent), `schema-major-mismatch` (Simplex on an unknown major, Augur green) |
 | Nothing readable | If no authority could be read, `overall` is null. Null is never GREEN. | `all-unavailable` |
-| No second rollup | Adding an authority never lowers `overall`. Vigil does not recompute a host or check result from a primitive. | `simplex-yellow-augur-red` |
+| Adding an authority | Adding a configured authority can keep `overall` or make it worse, never better: the worst-of can only rise, and an authority that cannot be read adds the YELLOW floor of the missing-authority cap. | `simplex-yellow-augur-red` (adding a RED Augur to a YELLOW Simplex gives RED), `augur-unavailable` (adding an unreadable Augur to a GREEN Simplex gives YELLOW) |
+| No second rollup | Vigil does not recompute a host or check result from a primitive. It combines verdicts; it does not re-derive them. | `simplex-yellow-augur-red` |
 
 Before Augur's Vigil fields land, `verdicts[]` holds `simplex` only, and the document says so. Augur-shaped fields injected early leave `overall` unchanged.
 
