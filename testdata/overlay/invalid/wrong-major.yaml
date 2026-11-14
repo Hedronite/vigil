@@ -1,0 +1,4 @@
+apiVersion: vigil.overlay/v1
+backends:
+  - id: prom
+    address: http://prom.example.invalid:9090

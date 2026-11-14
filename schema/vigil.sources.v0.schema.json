@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Hedronite/vigil/schema/vigil.sources.v0.schema.json",
+  "title": "vigil.sources/v0",
+  "description": "One row per configured backend. The row shape is the summary's own source shape, referenced rather than copied, so the two can never drift.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "generated_at", "sources"],
+  "properties": {
+    "apiVersion": { "const": "vigil.sources/v0" },
+    "generated_at": {
+      "$ref": "https://github.com/Hedronite/vigil/schema/vigil.summary.v0.schema.json#/$defs/timestamp"
+    },
+    "sources": {
+      "type": "array",
+      "items": {
+        "$ref": "https://github.com/Hedronite/vigil/schema/vigil.summary.v0.schema.json#/$defs/source"
+      }
+    }
+  }
+}

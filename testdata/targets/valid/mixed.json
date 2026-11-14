@@ -1,0 +1,20 @@
+{
+  "apiVersion": "vigil.targets/v0",
+  "backend": "prom",
+  "vantage": "lathe",
+  "generated_at": "2026-11-14T09:00:00Z",
+  "targets": [
+    {
+      "host": "castle",
+      "job": "node",
+      "health": "up",
+      "last_scrape": "2026-11-14T09:00:00Z"
+    },
+    {
+      "host": "unmapped",
+      "job": "redacted",
+      "health": "unknown",
+      "last_scrape": null
+    }
+  ]
+}

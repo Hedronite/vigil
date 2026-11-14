@@ -65,19 +65,35 @@ func loadYAMLFixture(t *testing.T, path string) any {
 	return out
 }
 
-// compileSchema compiles one schema file, registering it under its own $id.
+// compileSchema compiles one schema file after registering every sibling, so a
+// cross-file reference (the sources document reuses the summary's source shape)
+// resolves without a network fetch.
 func compileSchema(t *testing.T, path string) *jsonschema.Schema {
 	t.Helper()
-	doc := loadJSON(t, path)
-	id, ok := at(doc, "$id").(string)
-	if !ok || id == "" {
-		t.Fatalf("%s: missing $id", filepath.Base(path))
+	dir := filepath.Dir(path)
+	siblings, err := filepath.Glob(filepath.Join(dir, "*.schema.json"))
+	if err != nil {
+		t.Fatalf("glob schemas: %v", err)
 	}
 	c := jsonschema.NewCompiler()
-	if err := c.AddResource(id, doc); err != nil {
-		t.Fatalf("%s: add resource: %v", filepath.Base(path), err)
+	want := ""
+	for _, sibling := range siblings {
+		doc := loadJSON(t, sibling)
+		id, ok := at(doc, "$id").(string)
+		if !ok || id == "" {
+			t.Fatalf("%s: missing $id", filepath.Base(sibling))
+		}
+		if err := c.AddResource(id, doc); err != nil {
+			t.Fatalf("%s: add resource: %v", filepath.Base(sibling), err)
+		}
+		if filepath.Clean(sibling) == filepath.Clean(path) {
+			want = id
+		}
 	}
-	sch, err := c.Compile(id)
+	if want == "" {
+		t.Fatalf("%s: not among the schemas in %s", filepath.Base(path), dir)
+	}
+	sch, err := c.Compile(want)
 	if err != nil {
 		t.Fatalf("%s: compile: %v", filepath.Base(path), err)
 	}
@@ -253,6 +269,11 @@ func TestFixturesValidateAsLabelled(t *testing.T) {
 	errorSch := compileSchema(t, filepath.Join(root, "schema", "vigil.error.v0.schema.json"))
 	configSch := compileSchema(t, filepath.Join(root, "schema", "vigil.config.v0.schema.json"))
 	simplexSch := compileSchema(t, filepath.Join(root, "schema", "simplex.probe.v0.schema.json"))
+	overlaySch := compileSchema(t, filepath.Join(root, "schema", "vigil.overlay.v0.schema.json"))
+	sourcesSch := compileSchema(t, filepath.Join(root, "schema", "vigil.sources.v0.schema.json"))
+	targetsSch := compileSchema(t, filepath.Join(root, "schema", "vigil.targets.v0.schema.json"))
+	querySch := compileSchema(t, filepath.Join(root, "schema", "vigil.query.v0.schema.json"))
+	healthSch := compileSchema(t, filepath.Join(root, "schema", "vigil.health.v0.schema.json"))
 
 	check := func(kind string, sch *jsonschema.Schema, load func(*testing.T, string) any, ext string) {
 		valid, _ := filepath.Glob(filepath.Join(testdata, kind, "valid", "*"+ext))
@@ -274,6 +295,11 @@ func TestFixturesValidateAsLabelled(t *testing.T) {
 	check("signal", signalSch, loadJSON, ".json")
 	check("error", errorSch, loadJSON, ".json")
 	check("config", configSch, loadYAMLFixture, ".yaml")
+	check("overlay", overlaySch, loadYAMLFixture, ".yaml")
+	check("sources", sourcesSch, loadJSON, ".json")
+	check("targets", targetsSch, loadJSON, ".json")
+	check("query", querySch, loadJSON, ".json")
+	check("health", healthSch, loadJSON, ".json")
 
 	// Vendored documents must satisfy Simplex's own schema.
 	docs, _ := filepath.Glob(filepath.Join(testdata, "simplex", "*", "document.json"))
@@ -385,9 +411,10 @@ func derive(doc any) (any, int) {
 	}
 }
 
-// TestNoTestOnlyPackagesInBinary keeps the schema validator, the YAML decoder
-// and the text package they pull in out of the shipped binary: all three are
-// test dependencies, and the depguard rule says the same.
+// TestNoTestOnlyPackagesInBinary keeps the schema validator and the text
+// package it pulls in out of the shipped binary: both are test dependencies,
+// and the depguard rule says the same. The YAML decoder, cobra and pflag are
+// allowed, because the config loader and the CLI need them.
 func TestNoTestOnlyPackagesInBinary(t *testing.T) {
 	root := repoRoot(t)
 	cmd := exec.Command("go", "list", "-deps", "./cmd/vigil")
@@ -396,10 +423,10 @@ func TestNoTestOnlyPackagesInBinary(t *testing.T) {
 	if err != nil {
 		t.Fatalf("go list: %v", err)
 	}
+	// The config loader and the CLI are part of the binary; the validator and
+	// the text package it pulls in are not.
 	testOnly := []string{
 		"github.com/santhosh-tekuri/jsonschema",
-		"go.yaml.in/yaml",
-		"gopkg.in/yaml",
 		"golang.org/x/text",
 	}
 	for _, line := range strings.Split(string(out), "\n") {
@@ -473,4 +500,70 @@ func collectPatterns(v any) []string {
 		}
 	}
 	return out
+}
+
+// TestV1DocumentDrift ties the backend documents to the shared vocabulary: the
+// sources row is the summary's own shape rather than a copy, a health state is
+// a source state, and a detail code is a reason code.
+func TestV1DocumentDrift(t *testing.T) {
+	root := repoRoot(t)
+	schemaPath := func(name string) string { return filepath.Join(root, "schema", name) }
+
+	summaryID, _ := at(loadJSON(t, schemaPath("vigil.summary.v0.schema.json")), "$id").(string)
+	if summaryID == "" {
+		t.Fatal("summary schema has no $id")
+	}
+
+	sourcesDoc := loadJSON(t, schemaPath("vigil.sources.v0.schema.json"))
+	wantRef := summaryID + "#/$defs/source"
+	if got := at(sourcesDoc, "properties", "sources", "items", "$ref"); got != wantRef {
+		t.Errorf("sources row ref = %v, want %q", got, wantRef)
+	}
+
+	healthDoc := loadJSON(t, schemaPath("vigil.health.v0.schema.json"))
+	states := strEnum(t, healthDoc, "properties", "state", "enum")
+	if !equalUnordered(states, []string{reasons.StateOK, reasons.StateUnavailable}) {
+		t.Errorf("health states = %v, want ok and unavailable only", states)
+	}
+	known := map[string]bool{}
+	for _, st := range reasons.States {
+		known[st] = true
+	}
+	for _, st := range states {
+		if !known[st] {
+			t.Errorf("health state %q is not a source state", st)
+		}
+	}
+	if got := at(healthDoc, "properties", "detail_code", "pattern"); got != reasons.Pattern {
+		t.Errorf("health detail pattern = %v, want %q", got, reasons.Pattern)
+	}
+
+	targetsDoc := loadJSON(t, schemaPath("vigil.targets.v0.schema.json"))
+	if got := strEnum(t, targetsDoc, "properties", "targets", "items", "properties", "health", "enum"); !equalUnordered(got, []string{"up", "down", "unknown"}) {
+		t.Errorf("target health enum = %v, want up, down and unknown", got)
+	}
+
+	queryDoc := loadJSON(t, schemaPath("vigil.query.v0.schema.json"))
+	if got := at(queryDoc, "properties", "series", "items", "properties", "value", "type"); got != "string" {
+		t.Errorf("query sample type = %v, want a string so precision survives", got)
+	}
+
+	// Each versioned document names itself once, and the const matches the file.
+	for _, name := range []string{
+		"vigil.sources.v0.schema.json",
+		"vigil.targets.v0.schema.json",
+		"vigil.query.v0.schema.json",
+		"vigil.health.v0.schema.json",
+	} {
+		doc := loadJSON(t, schemaPath(name))
+		constant := at(doc, "properties", "apiVersion", "const")
+		want := strings.TrimSuffix(strings.TrimPrefix(name, "vigil."), ".schema.json")
+		want = "vigil." + strings.Replace(want, ".v0", "/v0", 1)
+		if constant != want {
+			t.Errorf("%s: apiVersion const = %v, want %q", name, constant, want)
+		}
+		if req, ok := at(doc, "required").([]any); !ok || len(req) == 0 || req[0] != "apiVersion" {
+			t.Errorf("%s: apiVersion is not the first required field", name)
+		}
+	}
 }
