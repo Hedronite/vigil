@@ -80,6 +80,10 @@ Use golangci-lint v2 and a current govulncheck. All checks are blocking.
 - **Schemas are the contract.** JSON Schemas under `schema/` are written by hand. A change that adds a field is additive within `v0`; anything that removes or renames one needs a new major.
 - **Hermetic tests.** Table-driven, `httptest` for every backend, no live network, no wall clock (inject the clock).
 
+## The name guard
+
+`cmd/vigil/names_test.go` runs under plain `go test ./...` and fails if any tracked or untracked file in the tree, or any file name, carries a name on the maintainers' list. The list is held off-repo and the test holds only salted hashes, so a failure prints a path, a line, a list and an index, never the name. If it fires, reword the text or rename the file. Do not paste the match into an issue, a pull request or a log.
+
 ## Pull requests
 
 1. Branch from `main`. Keep a branch to one slice of work.
