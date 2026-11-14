@@ -4,14 +4,13 @@
     "activeTargets": [
       {
         "labels": {
-          "instance": "castle.example.invalid:9100",
+          "instance": "castle",
           "job": "node"
         },
         "scrapeUrl": "http://castle.example.invalid:9100/metrics",
         "lastError": "",
         "discoveredLabels": {
-          "__address__": "castle.example.invalid:9100",
-          "__meta": "x"
+          "__address__": "castle.example.invalid:9100"
         },
         "health": "up",
         "lastScrape": "2026-11-14T09:00:00Z"
@@ -29,10 +28,10 @@
       },
       {
         "labels": {
-          "instance": "node-a.example.invalid:9100",
+          "instance": "box",
           "job": "node"
         },
-        "scrapeUrl": "http://node-a.example.invalid:9100/metrics",
+        "scrapeUrl": "http://box.example.invalid:9090/metrics",
         "lastError": "dial tcp: connection refused",
         "discoveredLabels": {},
         "health": "unknown",

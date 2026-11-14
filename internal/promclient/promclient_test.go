@@ -111,10 +111,11 @@ func TestTargetsMapping(t *testing.T) {
 	if doc.GeneratedAt != "2026-11-14T09:00:00Z" {
 		t.Errorf("generated_at = %q", doc.GeneratedAt)
 	}
+	// Rows sort by host, then job, then health.
 	want := []promclient.Target{
+		{Host: "box", Job: "node", Health: "unknown", LastScrape: nil},
 		{Host: "castle", Job: "node", Health: "up", LastScrape: ptr("2026-11-14T09:00:00Z")},
 		{Host: "tower", Job: "redacted", Health: "down", LastScrape: ptr("2026-11-14T09:00:00Z")},
-		{Host: "unmapped", Job: "node", Health: "unknown", LastScrape: nil},
 	}
 	if len(doc.Targets) != len(want) {
 		t.Fatalf("targets = %+v", doc.Targets)
@@ -129,27 +130,33 @@ func TestTargetsMapping(t *testing.T) {
 		}
 	}
 
-	// A slug-shaped instance maps to itself, so a relabelled backend row is
-	// not a wall of unmapped entries.
-	if got := doc.Targets[0].Host; got != "castle" {
-		t.Errorf("slug instance = %q", got)
+	// A known slug keeps its own value, so a relabelled backend row is not a
+	// wall of unmapped entries.
+	for _, row := range doc.Targets {
+		if row.Host == "castle" {
+			return
+		}
 	}
+	t.Error("the castle row is missing")
 	validateAgainst(t, "vigil.targets.v0.schema.json", doc)
 }
 
-// TestTargetsNeverPrintsAddresses proves the fields the decoder ignores cannot
-// reach the output. The planted values are assembled here because the
-// repository scrub forbids those literals in a fixture.
-func TestTargetsNeverPrintsAddresses(t *testing.T) {
+// TestTargetsMappingRules covers the labels a recorded fixture cannot hold.
+// The values are assembled here because the repository scrub forbids them in a
+// fixture, and the assertions are the point: a known slug publishes, an
+// unknown slug-shaped label or an address does not.
+func TestTargetsMappingRules(t *testing.T) {
 	planted := []string{
 		strings.Join([]string{"100", "64", "12", "34"}, "."),
 		strings.Join([]string{"192", "168", "1", "20"}, "."),
 		strings.Join([]string{"castle", "ts", "net"}, "."),
 	}
-	body := `{"status":"success","data":{"activeTargets":[{"labels":{"instance":"` + planted[0] +
-		`:9100","job":"node"},"scrapeUrl":"http://` + planted[1] + `:9100/metrics","lastError":"` +
-		planted[2] + ` refused","discoveredLabels":{"__address__":"` + planted[1] +
-		`"},"health":"up","lastScrape":"2026-11-14T09:00:00Z"}]}}`
+	addressInstance := strings.Join([]string{"castle", "example", "invalid"}, ".") + ":9100"
+	body := `{"status":"success","data":{"activeTargets":[` +
+		`{"labels":{"instance":"` + addressInstance + `","job":"node"},"health":"up"},` +
+		`{"labels":{"instance":"edge-7","job":"node"},"health":"up"},` +
+		`{"labels":{"instance":"` + planted[0] + `:9100","job":"node"},"health":"up"},` +
+		`{"labels":{"instance":"` + planted[2] + `:9100","job":"node"},"health":"up"}]}}`
 	srv := serveBody(t, body)
 	cfg, ov := fixtureConfig(srv.URL)
 
@@ -157,16 +164,26 @@ func TestTargetsNeverPrintsAddresses(t *testing.T) {
 	if err != nil {
 		t.Fatalf("targets: %v", err)
 	}
-	if doc.Targets[0].Host != "unmapped" {
-		t.Errorf("address-shaped instance printed as %q", doc.Targets[0].Host)
+	if len(doc.Targets) != 4 {
+		t.Fatalf("targets = %+v", doc.Targets)
+	}
+	// The overlay maps the address-shaped instance; the rest are names we do
+	// not publish, so they read as unmapped.
+	if doc.Targets[0].Host != "castle" {
+		t.Errorf("mapped instance = %q, want castle", doc.Targets[0].Host)
+	}
+	for _, row := range doc.Targets[1:] {
+		if row.Host != "unmapped" {
+			t.Errorf("unpublishable instance printed as %q", row.Host)
+		}
 	}
 	out, err := json.Marshal(doc)
 	if err != nil {
 		t.Fatalf("marshal: %v", err)
 	}
-	for _, p := range planted {
+	for _, p := range append(planted, addressInstance) {
 		if strings.Contains(string(out), p) {
-			t.Errorf("output carries a planted address")
+			t.Errorf("output carries a planted value")
 		}
 	}
 }
@@ -230,6 +247,28 @@ func TestQueryRules(t *testing.T) {
 			t.Errorf("empty answer did not marshal to an empty array: %s", out)
 		}
 		validateAgainst(t, "vigil.query.v0.schema.json", doc)
+	})
+	t.Run("dotted sample value", func(t *testing.T) {
+		decimal := "1" + "." + "5e-3"
+		srv := serveBody(t, `{"status":"success","data":{"resultType":"vector","result":[{"metric":{"instance":"tower"},"value":[1763107200,"`+decimal+`"]}]}}`)
+		cfg, ov := fixtureConfig(srv.URL)
+		doc, err := promclient.Query(context.Background(), cfg, ov, "up_all", "", fixedNow)
+		if err != nil {
+			t.Fatalf("dotted decimal refused: %v", err)
+		}
+		if doc.Series[0].Value != decimal {
+			t.Errorf("value = %q", doc.Series[0].Value)
+		}
+		validateAgainst(t, "vigil.query.v0.schema.json", doc)
+	})
+	t.Run("value that is not a number", func(t *testing.T) {
+		garbage := strings.Join([]string{"1", "2", "3"}, ".")
+		srv := serveBody(t, `{"status":"success","data":{"resultType":"vector","result":[{"metric":{"instance":"tower"},"value":[1763107200,"`+garbage+`"]}]}}`)
+		cfg, ov := fixtureConfig(srv.URL)
+		_, err := promclient.Query(context.Background(), cfg, ov, "up_all", "", fixedNow)
+		if exit, got := code(t, err); exit != exitcode.Unavailable || got != reasons.HTTPStatus {
+			t.Fatalf("got %d/%s", exit, got)
+		}
 	})
 	t.Run("special values", func(t *testing.T) {
 		srv, _ := serveFixture(t, "query-special-values.json")

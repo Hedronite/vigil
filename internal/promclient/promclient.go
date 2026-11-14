@@ -30,14 +30,13 @@ const (
 	QueryVersion   = "vigil.query/v0"
 )
 
-// Codes owned by the command layer until internal/reasons carries them.
+// Codes owned by the command layer: the backend-selection failures are Vigil's
+// own words, while the host rules come from internal/reasons.
 const (
-	codeMissingHost    = "missing_host"
-	codeUnexpectedHost = "unexpected_host"
-	codeNoBackend      = "no_backend"
-	codeAmbiguous      = "ambiguous_backend"
-	codeNoAddress      = "no_address"
-	codeUnknownHost    = "unknown_host"
+	codeNoBackend   = "no_backend"
+	codeAmbiguous   = "ambiguous_backend"
+	codeNoAddress   = "no_address"
+	codeUnknownHost = "unknown_host"
 )
 
 // unmapped and redacted are the two words the document uses when a label is
@@ -140,7 +139,7 @@ func Targets(ctx context.Context, cfg *config.Config, ov *config.Overlay, now ti
 			LastScrape: optionalStamp(t.LastScrape),
 		})
 	}
-	sort.Slice(doc.Targets, func(i, j int) bool {
+	sort.SliceStable(doc.Targets, func(i, j int) bool {
 		a, b := doc.Targets[i], doc.Targets[j]
 		if a.Host != b.Host {
 			return a.Host < b.Host
@@ -168,9 +167,9 @@ func Query(ctx context.Context, cfg *config.Config, ov *config.Overlay, name, ho
 	needsHost := strings.Contains(q.Expr, hostPlaceholder)
 	switch {
 	case needsHost && host == "":
-		return nil, exitcode.Newf(exitcode.Usage, codeMissingHost, "this query needs a host")
+		return nil, exitcode.Newf(exitcode.Usage, reasons.MissingHost, "this query needs a host")
 	case !needsHost && host != "":
-		return nil, exitcode.Newf(exitcode.Usage, codeUnexpectedHost, "this query takes no host")
+		return nil, exitcode.Newf(exitcode.Usage, reasons.UnexpectedHost, "this query takes no host")
 	}
 	if host != "" && !knownHost(ov, host) {
 		return nil, exitcode.Newf(exitcode.Usage, codeUnknownHost, "the host is not a known slug")
@@ -251,7 +250,7 @@ func Query(ctx context.Context, cfg *config.Config, ov *config.Overlay, name, ho
 		}
 		doc.Series = append(doc.Series, item)
 	}
-	sort.Slice(doc.Series, func(i, j int) bool {
+	sort.SliceStable(doc.Series, func(i, j int) bool {
 		a, b := doc.Series[i], doc.Series[j]
 		if a.Host != b.Host {
 			return a.Host < b.Host
@@ -305,7 +304,9 @@ func vantage(b config.Backend) string {
 }
 
 // mapInstance turns a target instance label into a public slug: the overlay's
-// map first, then a value that is already a slug, otherwise unmapped.
+// map first, then a value that is already a known slug (an overlay host slug or
+// one of the public six), otherwise unmapped. A slug-shaped label that nobody
+// declares is still a name, and a name is not published.
 func mapInstance(ov *config.Overlay, instance string) string {
 	if instance == "" {
 		return unmapped
@@ -313,7 +314,7 @@ func mapInstance(ov *config.Overlay, instance string) string {
 	if slug, ok := ov.SlugFor(instance); ok {
 		return slug
 	}
-	if slugPattern.MatchString(instance) {
+	if knownHost(ov, instance) {
 		return instance
 	}
 	return unmapped
