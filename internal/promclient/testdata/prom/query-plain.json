@@ -1,0 +1,28 @@
+{
+  "status": "success",
+  "data": {
+    "resultType": "vector",
+    "result": [
+      {
+        "metric": {
+          "instance": "castle.example.invalid:9100",
+          "job": "node"
+        },
+        "value": [
+          1763107200,
+          "1"
+        ]
+      },
+      {
+        "metric": {
+          "instance": "tower",
+          "job": "node"
+        },
+        "value": [
+          1763107200,
+          "0.5"
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "status": "success",
+  "data": {
+    "activeTargets": [
+      {
+        "labels": {
+          "instance": "castle.example.invalid:9100",
+          "job": "node"
+        },
+        "scrapeUrl": "http://castle.example.invalid:9100/metrics",
+        "lastError": "",
+        "discoveredLabels": {
+          "__address__": "castle.example.invalid:9100",
+          "__meta": "x"
+        },
+        "health": "up",
+        "lastScrape": "2026-11-14T09:00:00Z"
+      },
+      {
+        "labels": {
+          "instance": "tower",
+          "job": "Node Exporter"
+        },
+        "scrapeUrl": "http://tower.example.invalid:9100/metrics",
+        "lastError": "",
+        "discoveredLabels": {},
+        "health": "down",
+        "lastScrape": "2026-11-14T09:00:00Z"
+      },
+      {
+        "labels": {
+          "instance": "node-a.example.invalid:9100",
+          "job": "node"
+        },
+        "scrapeUrl": "http://node-a.example.invalid:9100/metrics",
+        "lastError": "dial tcp: connection refused",
+        "discoveredLabels": {},
+        "health": "unknown",
+        "lastScrape": null
+      }
+    ]
+  }
+}
