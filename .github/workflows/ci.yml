@@ -67,6 +67,12 @@ jobs:
       - name: Tests (race, shuffled)
         run: go test -race -shuffle=on -count=1 ./...
 
+      - name: Fuzz (short run per target; a crasher fails the job)
+        shell: bash
+        run: |
+          scripts/fuzz.sh --selftest
+          scripts/fuzz.sh
+
       - name: Scrub tracked files
         shell: bash
         run: scripts/scrub.sh
