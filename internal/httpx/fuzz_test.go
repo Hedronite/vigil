@@ -82,9 +82,19 @@ func FuzzPath(f *testing.F) {
 			t.Fatalf("accepted path %q has a doubled slash, a dot segment or no root", p)
 		}
 		for i := 0; i < len(p); i++ {
-			if c := p[i]; !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '/' || c == '-' || c == '_' || c == '.') {
+			if c := p[i]; !plainPathChar(c) {
 				t.Fatalf("accepted path %q holds %q", p, c)
 			}
 		}
 	})
+}
+
+// plainPathChar is the set a fixed path may use, written out here and not
+// borrowed from the code under test.
+func plainPathChar(c byte) bool {
+	switch {
+	case c >= 'a' && c <= 'z', c >= 'A' && c <= 'Z', c >= '0' && c <= '9':
+		return true
+	}
+	return c == '/' || c == '-' || c == '_' || c == '.'
 }

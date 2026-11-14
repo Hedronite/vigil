@@ -60,11 +60,21 @@ func FuzzCLIArgs(f *testing.F) {
 			if errb.Len() != 0 {
 				t.Fatalf("exit 0 with stderr %q", errb.String())
 			}
-			// No valid invocation holds a URL, so one that exits 0 means a
-			// value that should have been refused got through.
+			// No valid invocation holds a URL, a selector or an expression, so
+			// a run that exits 0 with one means a value that should have been
+			// refused got through. Asking for help is the exception: cobra
+			// answers -h, --help and the help command before it checks the
+			// other arguments. The help text is static, and it must not repeat
+			// any of them.
 			for _, a := range args {
-				if strings.Contains(a, "://") || strings.ContainsAny(a, "{([\"?#") {
+				if !suspicious(a) {
+					continue
+				}
+				if !helpAsked(args) {
 					t.Fatalf("exit 0 with the URL-, selector- or expression-shaped argument %q", a)
+				}
+				if strings.Contains(out.String(), a) {
+					t.Fatalf("the help text repeats the argument %q", a)
 				}
 			}
 		case exitcode.Usage:
@@ -102,4 +112,20 @@ func FuzzCLIArgs(f *testing.F) {
 			t.Fatalf("exit %d: handlers that succeed leave only 0 and 3", code)
 		}
 	})
+}
+
+// suspicious reports whether an argument looks like a URL, a selector or an
+// expression: nothing a valid invocation holds.
+func suspicious(a string) bool {
+	return strings.Contains(a, "://") || strings.ContainsAny(a, "{([\"?#")
+}
+
+// helpAsked reports whether the arguments ask for help.
+func helpAsked(args []string) bool {
+	for _, a := range args {
+		if a == "-h" || a == "--help" || a == "help" {
+			return true
+		}
+	}
+	return false
 }
