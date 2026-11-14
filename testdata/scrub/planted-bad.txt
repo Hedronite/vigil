@@ -10,6 +10,8 @@ tailnet IPv6:           fd7a:115c:a1e0::1
 tailnet hostname:       somehost.tail0000.ts.net
 hostname in a fixture:  probe.corp.example-lab.com
 host key, not a slug:  "host": "somemachine"
+id key, not a slug:    "id": "somemachine"
+hostname, unlisted TLD: db.internal-lab.de
 credential assignment:  api_key = abcdefghijklmnopqrstuvwxyz012345
 bearer credential:      Authorization: Bearer abcdefghijklmnopqrstuvwxyz0123456789
 AWS key id (the vendor's documented example): AKIAIOSFODNN7EXAMPLE
