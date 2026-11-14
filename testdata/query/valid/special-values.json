@@ -1,0 +1,33 @@
+{
+  "apiVersion": "vigil.query/v0",
+  "backend": "prom",
+  "vantage": "lathe",
+  "name": "up_by_host",
+  "evaluated_at": "2026-11-14T09:00:00Z",
+  "series": [
+    {
+      "host": "castle",
+      "value": "1"
+    },
+    {
+      "host": "tower",
+      "value": "-0.5"
+    },
+    {
+      "host": "lathe",
+      "value": "1.5e-3"
+    },
+    {
+      "host": "box",
+      "value": "NaN"
+    },
+    {
+      "host": "apiary",
+      "value": "+Inf"
+    },
+    {
+      "host": "citadel",
+      "value": "-Inf"
+    }
+  ]
+}

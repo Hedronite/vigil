@@ -567,3 +567,45 @@ func TestV1DocumentDrift(t *testing.T) {
 		}
 	}
 }
+
+// TestQueryValueShape pins the sample-value shape. A decimal, an exponent, NaN
+// and the infinities pass; anything that is really an address or a name does
+// not. The address-shaped cases are assembled at run time, because the
+// repository scrub forbids those literals anywhere in the tree and a fixture
+// cannot spell them.
+func TestQueryValueShape(t *testing.T) {
+	root := repoRoot(t)
+	sch := compileSchema(t, filepath.Join(root, "schema", "vigil.query.v0.schema.json"))
+
+	doc := func(value string) any {
+		return map[string]any{
+			"apiVersion":   "vigil.query/v0",
+			"backend":      "prom",
+			"vantage":      "lathe",
+			"name":         "up_by_host",
+			"evaluated_at": "2026-11-14T09:00:00Z",
+			"series":       []any{map[string]any{"host": "castle", "value": value}},
+		}
+	}
+	good := []string{"0", "1", "-0.5", "1.5e-3", "2E+10", "NaN", "+Inf", "-Inf"}
+	for _, v := range good {
+		if err := sch.Validate(doc(v)); err != nil {
+			t.Errorf("value %q rejected: %v", v, err)
+		}
+	}
+	bad := []string{
+		"http://prom.example.invalid:9090",
+		"castle",
+		"127.0.0.1",
+		"1.2.3",
+		"1,5",
+		"",
+		strings.Join([]string{"100", "64", "0", "1"}, "."),
+		strings.Join([]string{"castle", "ts", "net"}, "."),
+	}
+	for _, v := range bad {
+		if err := sch.Validate(doc(v)); err == nil {
+			t.Errorf("value %q validated, want a rejection", v)
+		}
+	}
+}

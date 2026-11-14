@@ -3,7 +3,7 @@
   "generated_at": "2026-11-14T09:00:00Z",
   "sources": [
     {
-      "id": "loki",
+      "id": "prom",
       "kind": "loki",
       "state": "ok",
       "observed_at": "2026-11-14T09:00:00Z"

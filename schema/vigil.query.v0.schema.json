@@ -5,33 +5,55 @@
   "description": "One named query's answer. Sample values stay strings: Prometheus reports them that way and a float would round them. Only the host and the job are carried over from the returned labels.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["apiVersion", "backend", "vantage", "name", "evaluated_at", "series"],
+  "required": [
+    "apiVersion",
+    "backend",
+    "vantage",
+    "name",
+    "evaluated_at",
+    "series"
+  ],
   "properties": {
-    "apiVersion": { "const": "vigil.query/v0" },
-    "backend": { "$ref": "#/$defs/token" },
-    "vantage": { "$ref": "#/$defs/slug" },
-    "name": { "$ref": "#/$defs/name" },
+    "apiVersion": {
+      "const": "vigil.query/v0"
+    },
+    "backend": {
+      "$ref": "#/$defs/token"
+    },
+    "vantage": {
+      "$ref": "#/$defs/slug"
+    },
+    "name": {
+      "$ref": "#/$defs/name"
+    },
     "host": {
       "description": "Present when the query was run for one host.",
       "$ref": "#/$defs/slug"
     },
-    "evaluated_at": { "$ref": "#/$defs/timestamp" },
+    "evaluated_at": {
+      "$ref": "#/$defs/timestamp"
+    },
     "series": {
       "type": "array",
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["host", "value"],
+        "required": [
+          "host",
+          "value"
+        ],
         "properties": {
-          "host": { "$ref": "#/$defs/slug" },
+          "host": {
+            "$ref": "#/$defs/slug"
+          },
           "job": {
             "type": "string",
             "pattern": "^[a-z][a-z0-9_-]{0,63}$"
           },
           "value": {
-            "description": "The sample as Prometheus reports it, so NaN and +Inf survive.",
+            "description": "A decimal, an exponent, NaN or an infinity, as Prometheus reports it. The shape is pinned so a value that is not a number, such as an address or a name, cannot ride in this field.",
             "type": "string",
-            "maxLength": 64
+            "pattern": "^[+-]?([0-9]+(\\.[0-9]+)?([eE][+-]?[0-9]+)?|Inf)$|^NaN$"
           }
         }
       }
