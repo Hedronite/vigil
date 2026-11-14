@@ -50,13 +50,13 @@ Codes 0 to 2 are verdicts. Codes 3 and up are errors, and no error path ever exi
 
 | Code | Meaning |
 | --- | --- |
-| 0 | `overall` GREEN |
-| 1 | `overall` YELLOW (a stale or missing authority is at least this) |
-| 2 | `overall` RED |
+| 0 | verdict GREEN |
+| 1 | verdict YELLOW (a stale source is at least this) |
+| 2 | verdict RED |
 | 3 | usage or configuration error |
-| 4 | unavailable: `overall` null, or a backend is unreachable |
+| 4 | source unavailable or backend unreachable |
 | 5 | auth, startup or bind failure |
-| 6 | internal error (a recovered panic) |
+| 6 | internal error (panic recovered) |
 
 The table is `internal/exitcode.Table`; a test fails if this page and the code disagree. Each summary golden carries its expected code in `expected_exit`. That is always Vigil's code, never the producer's: `vantage-blind` is 2 while Simplex exited 5, and `simplex-yellow-augur-red` is 2 while Simplex exited 1.
 

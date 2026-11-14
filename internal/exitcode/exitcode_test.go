@@ -49,22 +49,28 @@ func TestFromSeverity(t *testing.T) {
 	}
 }
 
-// docs/semantics.md prints the exit table. Every row must match Table, and
-// no row may be missing or extra.
+// docs/semantics.md prints the exit table. Every row must match Table in code
+// and in wording, and no row may be missing or extra. The README prints the
+// same table in the same words.
 func TestSemanticsDocMatchesTable(t *testing.T) {
 	raw, err := os.ReadFile("../../docs/semantics.md")
 	if err != nil {
 		t.Fatalf("read semantics doc: %v", err)
 	}
 	row := regexp.MustCompile(`(?m)^\| ([0-9]) \| (.+) \|$`)
-	found := map[int]bool{}
+	found := map[int]string{}
 	for _, m := range row.FindAllStringSubmatch(string(raw), -1) {
 		code, _ := strconv.Atoi(m[1])
-		found[code] = true
+		found[code] = m[2]
 	}
 	for _, e := range Table {
-		if !found[e.Code] {
+		got, ok := found[e.Code]
+		if !ok {
 			t.Errorf("docs/semantics.md has no row for exit code %d", e.Code)
+			continue
+		}
+		if got != e.Meaning {
+			t.Errorf("exit code %d: docs/semantics.md says %q, Table says %q", e.Code, got, e.Meaning)
 		}
 	}
 	if len(found) != len(Table) {
