@@ -7,18 +7,14 @@
       "source": "simplex",
       "state": "ok",
       "severity": "YELLOW",
-      "reasons": [
-        "prom_pair_degraded"
-      ],
+      "reasons": [],
       "observed_at": "2026-11-13T18:00:00Z"
     },
     {
       "source": "augur",
       "state": "ok",
       "severity": "RED",
-      "reasons": [
-        "alert_firing"
-      ],
+      "reasons": [],
       "observed_at": "2026-11-13T18:00:00Z"
     }
   ],

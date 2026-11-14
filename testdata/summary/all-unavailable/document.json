@@ -22,10 +22,6 @@
       "observed_at": null
     }
   ],
-  "vantage": {
-    "id": "lathe",
-    "status": "unchecked"
-  },
   "hosts": [],
   "sources": [
     {
