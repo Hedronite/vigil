@@ -81,7 +81,7 @@ func fixtureConfig(t *testing.T, base string) (*config.Config, *config.Overlay) 
 	cfg := &config.Config{
 		APIVersion: config.ConfigMajor,
 		Listen:     config.DefaultListen,
-		Backends:   []config.Backend{{ID: id, Kind: "prom", Vantage: "lathe"}},
+		Backends:   []config.Backend{{ID: id, Kind: "prom", Vantage: "lab"}},
 		Queries: []config.Query{
 			{Name: "up_by_host", Backend: id, Expr: `up{instance="{{.host}}"}`, Timeout: "5s", MaxSeries: 200},
 			{Name: "up_all", Backend: id, Expr: "up", Timeout: "5s", MaxSeries: 200},
@@ -92,7 +92,9 @@ func fixtureConfig(t *testing.T, base string) (*config.Config, *config.Overlay) 
 		APIVersion: config.OverlayMajor,
 		Backends:   []config.OverlayBackend{{ID: id, Address: base}},
 		Hosts: []config.OverlayHost{
-			{Slug: "castle", Instances: []string{"castle.example.invalid:9100"}},
+			{Slug: "core", Instances: []string{"core.example.invalid:9100"}},
+			{Slug: "spoke", Instances: []string{"spoke.example.invalid:9100"}},
+			{Slug: "edge", Instances: []string{"edge.example.invalid:9090"}},
 		},
 	}
 	return cfg, ov
@@ -120,7 +122,7 @@ func TestTargetsMapping(t *testing.T) {
 	if *path != "/api/v1/targets" {
 		t.Errorf("path = %q", *path)
 	}
-	if doc.APIVersion != promclient.TargetsVersion || doc.Backend != backendID(t, "") || doc.Vantage != "lathe" {
+	if doc.APIVersion != promclient.TargetsVersion || doc.Backend != backendID(t, "") || doc.Vantage != "lab" {
 		t.Errorf("document header = %+v", doc)
 	}
 	if doc.GeneratedAt != "2026-11-14T09:00:00Z" {
@@ -128,9 +130,9 @@ func TestTargetsMapping(t *testing.T) {
 	}
 	// Rows sort by host, then job, then health.
 	want := []promclient.Target{
-		{Host: "box", Job: "node", Health: "unknown", LastScrape: nil},
-		{Host: "castle", Job: "node", Health: "up", LastScrape: ptr("2026-11-14T09:00:00Z")},
-		{Host: "tower", Job: "redacted", Health: "down", LastScrape: ptr("2026-11-14T09:00:00Z")},
+		{Host: "core", Job: "node", Health: "up", LastScrape: ptr("2026-11-14T09:00:00Z")},
+		{Host: "edge", Job: "node", Health: "unknown", LastScrape: nil},
+		{Host: "spoke", Job: "redacted", Health: "down", LastScrape: ptr("2026-11-14T09:00:00Z")},
 	}
 	if len(doc.Targets) != len(want) {
 		t.Fatalf("targets = %+v", doc.Targets)
@@ -148,11 +150,11 @@ func TestTargetsMapping(t *testing.T) {
 	// A known slug keeps its own value, so a relabelled backend row is not a
 	// wall of unmapped entries.
 	for _, row := range doc.Targets {
-		if row.Host == "castle" {
+		if row.Host == "core" {
 			return
 		}
 	}
-	t.Error("the castle row is missing")
+	t.Error("the core row is missing")
 	validateAgainst(t, "vigil.targets.v0.schema.json", doc)
 }
 
@@ -164,9 +166,9 @@ func TestTargetsMappingRules(t *testing.T) {
 	planted := []string{
 		strings.Join([]string{"100", "64", "12", "34"}, "."),
 		strings.Join([]string{"192", "168", "1", "20"}, "."),
-		strings.Join([]string{"castle", "ts", "net"}, "."),
+		strings.Join([]string{"core", "ts", "net"}, "."),
 	}
-	addressInstance := strings.Join([]string{"castle", "example", "invalid"}, ".") + ":9100"
+	addressInstance := strings.Join([]string{"core", "example", "invalid"}, ".") + ":9100"
 	body := `{"status":"success","data":{"activeTargets":[` +
 		`{"labels":{"instance":"` + addressInstance + `","job":"node"},"health":"up"},` +
 		`{"labels":{"instance":"edge-7","job":"node"},"health":"up"},` +
@@ -184,8 +186,8 @@ func TestTargetsMappingRules(t *testing.T) {
 	}
 	// The overlay maps the address-shaped instance; the rest are names we do
 	// not publish, so they read as unmapped.
-	if doc.Targets[0].Host != "castle" {
-		t.Errorf("mapped instance = %q, want castle", doc.Targets[0].Host)
+	if doc.Targets[0].Host != "core" {
+		t.Errorf("mapped instance = %q, want core", doc.Targets[0].Host)
 	}
 	for _, row := range doc.Targets[1:] {
 		if row.Host != "unmapped" {
@@ -217,35 +219,50 @@ func TestQueryRules(t *testing.T) {
 	t.Run("unexpected host", func(t *testing.T) {
 		srv, _ := serveFixture(t, "query-plain.json")
 		cfg, ov := fixtureConfig(t, srv.URL)
-		_, err := promclient.Query(context.Background(), cfg, ov, "up_all", "tower", fixedNow)
+		_, err := promclient.Query(context.Background(), cfg, ov, "up_all", "spoke", fixedNow)
 		wantExit, wantCode := code(t, err)
 		if wantExit != exitcode.Usage || wantCode != "unexpected_host" {
 			t.Fatalf("got %d/%s", wantExit, wantCode)
 		}
 	})
-	t.Run("unknown host", func(t *testing.T) {
+	t.Run("host outside the overlay", func(t *testing.T) {
+		// "depot" is valid in shape and the product once accepted it without an
+		// overlay entry. The overlay is the only place a host is named, so it is
+		// unknown here.
 		srv, _ := serveFixture(t, "query-plain.json")
 		cfg, ov := fixtureConfig(t, srv.URL)
-		_, err := promclient.Query(context.Background(), cfg, ov, "up_by_host", "nowhere", fixedNow)
+		_, err := promclient.Query(context.Background(), cfg, ov, "up_by_host", "depot", fixedNow)
 		wantExit, wantCode := code(t, err)
 		if wantExit != exitcode.Usage || wantCode != "unknown_host" {
 			t.Fatalf("got %d/%s", wantExit, wantCode)
 		}
 	})
+	t.Run("overlay host answers", func(t *testing.T) {
+		srv, _ := serveFixture(t, "query-plain.json")
+		cfg, ov := fixtureConfig(t, srv.URL)
+		doc, err := promclient.Query(context.Background(), cfg, ov, "up_by_host", "spoke", fixedNow)
+		if err != nil {
+			t.Fatalf("overlay host refused: %v", err)
+		}
+		if doc.Host != "spoke" {
+			t.Fatalf("host = %q", doc.Host)
+		}
+		validateAgainst(t, "vigil.query.v0.schema.json", doc)
+	})
 	t.Run("plain answer", func(t *testing.T) {
 		srv, path := serveFixture(t, "query-plain.json")
 		cfg, ov := fixtureConfig(t, srv.URL)
-		doc, err := promclient.Query(context.Background(), cfg, ov, "up_by_host", "castle", fixedNow)
+		doc, err := promclient.Query(context.Background(), cfg, ov, "up_by_host", "core", fixedNow)
 		if err != nil {
 			t.Fatalf("query: %v", err)
 		}
 		if *path != "/api/v1/query" {
 			t.Errorf("path = %q", *path)
 		}
-		if doc.Host != "castle" || doc.Name != "up_by_host" {
+		if doc.Host != "core" || doc.Name != "up_by_host" {
 			t.Errorf("header = %+v", doc)
 		}
-		if len(doc.Series) != 2 || doc.Series[0].Host != "castle" || doc.Series[1].Host != "tower" {
+		if len(doc.Series) != 2 || doc.Series[0].Host != "core" || doc.Series[1].Host != "spoke" {
 			t.Errorf("series = %+v", doc.Series)
 		}
 		validateAgainst(t, "vigil.query.v0.schema.json", doc)
@@ -265,7 +282,7 @@ func TestQueryRules(t *testing.T) {
 	})
 	t.Run("dotted sample value", func(t *testing.T) {
 		decimal := "1" + "." + "5e-3"
-		srv := serveBody(t, `{"status":"success","data":{"resultType":"vector","result":[{"metric":{"instance":"tower"},"value":[1763107200,"`+decimal+`"]}]}}`)
+		srv := serveBody(t, `{"status":"success","data":{"resultType":"vector","result":[{"metric":{"instance":"spoke"},"value":[1763107200,"`+decimal+`"]}]}}`)
 		cfg, ov := fixtureConfig(t, srv.URL)
 		doc, err := promclient.Query(context.Background(), cfg, ov, "up_all", "", fixedNow)
 		if err != nil {
@@ -278,7 +295,7 @@ func TestQueryRules(t *testing.T) {
 	})
 	t.Run("value that is not a number", func(t *testing.T) {
 		garbage := strings.Join([]string{"1", "2", "3"}, ".")
-		srv := serveBody(t, `{"status":"success","data":{"resultType":"vector","result":[{"metric":{"instance":"tower"},"value":[1763107200,"`+garbage+`"]}]}}`)
+		srv := serveBody(t, `{"status":"success","data":{"resultType":"vector","result":[{"metric":{"instance":"spoke"},"value":[1763107200,"`+garbage+`"]}]}}`)
 		cfg, ov := fixtureConfig(t, srv.URL)
 		_, err := promclient.Query(context.Background(), cfg, ov, "up_all", "", fixedNow)
 		if exit, got := code(t, err); exit != exitcode.Unavailable || got != reasons.HTTPStatus {

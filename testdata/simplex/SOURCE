@@ -1,9 +1,11 @@
 repo: Hedronite/simplex
-commit: 503268433bdb716cc79a0a62a955c1136a1502ce
-phase: S1 exit (simplex check --json writes a conformant document to a file)
+documents_commit: 21ad602cd8a9b4e13ea326103500c052b4b96710
+documents_note: byte-for-byte copies of the ten documents below. Between the two commits Simplex renamed its example host slugs; the change is a rename only, so these documents still validate against the schema pinned next.
+schema_commit: 503268433bdb716cc79a0a62a955c1136a1502ce
 vendored:
   - schema/simplex.probe.v0.schema.json
   - testdata/simplex/<case>/document.json
   - testdata/simplex/<case>/exit
 excluded: Simplex configs and overlays (config.yaml, private.yaml)
-note: byte-for-byte copies. config-error (exit 3) and io-error (exit 4) ship no document, which is "no file written" and reaches Vigil as unavailable.
+deferred_to_v2: the newer reason codes and the enrichment case land with the V2 re-vendor from v0.1.0.
+note: config-error (exit 3) and io-error (exit 4) ship no document, which is "no file written" and reaches Vigil as unavailable.

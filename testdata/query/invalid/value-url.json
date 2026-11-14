@@ -1,12 +1,12 @@
 {
   "apiVersion": "vigil.query/v0",
   "backend": "prom",
-  "vantage": "lathe",
+  "vantage": "lab",
   "name": "up_by_host",
   "evaluated_at": "2026-11-14T09:00:00Z",
   "series": [
     {
-      "host": "castle",
+      "host": "core",
       "value": "http://prom.example.invalid:9090"
     }
   ]

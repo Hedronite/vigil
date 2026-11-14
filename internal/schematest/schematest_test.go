@@ -581,10 +581,10 @@ func TestQueryValueShape(t *testing.T) {
 		return map[string]any{
 			"apiVersion":   "vigil.query/v0",
 			"backend":      "prom",
-			"vantage":      "lathe",
+			"vantage":      "lab",
 			"name":         "up_by_host",
 			"evaluated_at": "2026-11-14T09:00:00Z",
-			"series":       []any{map[string]any{"host": "castle", "value": value}},
+			"series":       []any{map[string]any{"host": "core", "value": value}},
 		}
 	}
 	good := []string{"0", "1", "-0.5", "1.5e-3", "2E+10", "NaN", "+Inf", "-Inf"}
@@ -595,13 +595,13 @@ func TestQueryValueShape(t *testing.T) {
 	}
 	bad := []string{
 		"http://prom.example.invalid:9090",
-		"castle",
+		"core",
 		"127.0.0.1",
 		"1.2.3",
 		"1,5",
 		"",
 		strings.Join([]string{"100", "64", "0", "1"}, "."),
-		strings.Join([]string{"castle", "ts", "net"}, "."),
+		strings.Join([]string{"core", "ts", "net"}, "."),
 	}
 	for _, v := range bad {
 		if err := sch.Validate(doc(v)); err == nil {

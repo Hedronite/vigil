@@ -8,7 +8,7 @@
       "state": "ok",
       "observed_at": "2026-11-14T09:00:00Z",
       "last_ok": "2026-11-14T09:00:00Z",
-      "vantage": "lathe"
+      "vantage": "lab"
     },
     {
       "id": "grafana",

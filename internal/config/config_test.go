@@ -345,27 +345,27 @@ backends:
   - id: prom
     address: http://prom.example.invalid:9090
 hosts:
-  - slug: castle
-    instances: [castle.example.invalid:9100]
-  - slug: castle
-    instances: [castle.example.invalid:9101]
+  - slug: core
+    instances: [core.example.invalid:9100]
+  - slug: core
+    instances: [core.example.invalid:9101]
 `, exitcode.Usage},
 		{"instance claimed twice", `apiVersion: vigil.overlay/v0
 backends:
   - id: prom
     address: http://prom.example.invalid:9090
 hosts:
-  - slug: castle
-    instances: [castle.example.invalid:9100]
-  - slug: tower
-    instances: [castle.example.invalid:9100]
+  - slug: core
+    instances: [core.example.invalid:9100]
+  - slug: spoke
+    instances: [core.example.invalid:9100]
 `, exitcode.Usage},
 		{"no instances", `apiVersion: vigil.overlay/v0
 backends:
   - id: prom
     address: http://prom.example.invalid:9090
 hosts:
-  - slug: castle
+  - slug: core
     instances: []
 `, exitcode.Usage},
 		{"instance is a path", `apiVersion: vigil.overlay/v0
@@ -373,7 +373,7 @@ backends:
   - id: prom
     address: http://prom.example.invalid:9090
 hosts:
-  - slug: castle
+  - slug: core
     instances: ["/etc/passwd"]
 `, exitcode.Usage},
 	}
@@ -398,7 +398,7 @@ func TestBind(t *testing.T) {
 	cfg, err := config.Load(writeFile(t, dir, "c.yaml", minimal+`backends:
   - id: prom
     kind: prom
-    vantage: lathe
+    vantage: lab
 queries:
   - name: q
     backend: prom
@@ -407,7 +407,7 @@ queries:
 	if err != nil {
 		t.Fatalf("load config: %v", err)
 	}
-	if b, ok := cfg.Backend("prom"); !ok || b.Vantage != "lathe" {
+	if b, ok := cfg.Backend("prom"); !ok || b.Vantage != "lab" {
 		t.Fatalf("backend vantage = %+v", b)
 	}
 
@@ -416,8 +416,8 @@ backends:
   - id: prom
     address: http://prom.example.invalid:9090
 hosts:
-  - slug: castle
-    instances: [castle.example.invalid:9100]
+  - slug: core
+    instances: [core.example.invalid:9100]
 `))
 	if err != nil {
 		t.Fatalf("load overlay: %v", err)
@@ -425,7 +425,7 @@ hosts:
 	if err := good.Bind(cfg); err != nil {
 		t.Fatalf("bind: %v", err)
 	}
-	if slug, ok := good.SlugFor("castle.example.invalid:9100"); !ok || slug != "castle" {
+	if slug, ok := good.SlugFor("core.example.invalid:9100"); !ok || slug != "core" {
 		t.Fatalf("slug = %q, %v", slug, ok)
 	}
 	if addr, ok := good.Address("prom"); !ok || addr != "http://prom.example.invalid:9090" {

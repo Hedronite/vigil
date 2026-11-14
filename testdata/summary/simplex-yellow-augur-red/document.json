@@ -19,12 +19,12 @@
     }
   ],
   "vantage": {
-    "id": "lathe",
+    "id": "lab",
     "status": "unchecked"
   },
   "hosts": [
     {
-      "id": "box",
+      "id": "edge",
       "severity": "YELLOW",
       "reasons": [
         "tcp_connect_ok",
@@ -33,7 +33,7 @@
       "source": "simplex"
     },
     {
-      "id": "lathe",
+      "id": "lab",
       "severity": "GREEN",
       "reasons": [],
       "source": "simplex"

@@ -73,7 +73,7 @@ func cfgFor(t *testing.T, promURL, grafanaURL string) (*config.Config, *config.O
 		APIVersion: config.ConfigMajor,
 		Listen:     config.DefaultListen,
 		Backends: []config.Backend{
-			{ID: promID, Kind: "prom", Vantage: "lathe"},
+			{ID: promID, Kind: "prom", Vantage: "lab"},
 			{ID: grafanaID, Kind: "grafana"},
 		},
 	}
@@ -108,7 +108,7 @@ func TestSourcesRows(t *testing.T) {
 				t.Errorf("row %q carries a last_ok, but V1 keeps no state", row.ID)
 			}
 		}
-		if doc.Sources[0].Vantage != "lathe" || doc.Sources[1].Vantage != "" {
+		if doc.Sources[0].Vantage != "lab" || doc.Sources[1].Vantage != "" {
 			t.Errorf("vantage rows = %q/%q", doc.Sources[0].Vantage, doc.Sources[1].Vantage)
 		}
 		validate(t, doc)

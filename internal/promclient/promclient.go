@@ -46,10 +46,6 @@ const (
 	redacted = "redacted"
 )
 
-// PublicSlugs are the six slugs the product publishes. A --host is accepted for
-// one of these even when the overlay does not map it.
-var PublicSlugs = []string{"castle", "tower", "citadel", "apiary", "lathe", "box"}
-
 var (
 	slugPattern = regexp.MustCompile(`^[a-z][a-z0-9-]{0,31}$`)
 	jobPattern  = regexp.MustCompile(`^[a-z][a-z0-9_-]{0,63}$`)
@@ -347,15 +343,12 @@ func healthWord(h string) string {
 	}
 }
 
-// knownHost accepts a slug the overlay maps or one of the public slugs.
+// knownHost accepts only a slug the overlay maps. The product keeps no built-in
+// list: an operator's overlay is the one place a host is named, so a slug that
+// is valid in shape but absent from it is an unknown host, not a public one.
 func knownHost(ov *config.Overlay, host string) bool {
 	if !slugPattern.MatchString(host) {
 		return false
-	}
-	for _, slug := range PublicSlugs {
-		if slug == host {
-			return true
-		}
 	}
 	for _, h := range ov.Hosts {
 		if h.Slug == host {

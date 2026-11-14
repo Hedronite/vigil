@@ -12,12 +12,12 @@
     }
   ],
   "vantage": {
-    "id": "lathe",
+    "id": "lab",
     "status": "blind"
   },
   "hosts": [
     {
-      "id": "box",
+      "id": "edge",
       "severity": "RED",
       "reasons": [
         "vantage_blind"
@@ -25,7 +25,7 @@
       "source": "simplex"
     },
     {
-      "id": "lathe",
+      "id": "lab",
       "severity": "RED",
       "reasons": [
         "vantage_blind"
