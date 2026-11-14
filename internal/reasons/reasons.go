@@ -26,7 +26,7 @@ var Own = []string{
 	AuthorityUnavailable,
 }
 
-// Backend detail codes (V1). They say why a backend call failed, in
+// Backend and query detail codes (V1). They say why a backend call failed, in
 // sources[].detail_code and in vigil.error/v0. They are never addresses,
 // never URLs and never text copied from a backend.
 const (
@@ -50,8 +50,13 @@ const (
 	QueryRejected = "query_rejected"
 	// NotHealth: the body was not a health document (a login page, say).
 	NotHealth = "not_health"
-	// NoSeries: a query matched no series.
+	// NoSeries: a source whose data is expected is absent. An empty query
+	// result is not this: it is an answer with no series.
 	NoSeries = "no_series"
+	// MissingHost: a query that names {{.host}} was run without --host.
+	MissingHost = "missing_host"
+	// UnexpectedHost: --host was given to a query with no {{.host}}.
+	UnexpectedHost = "unexpected_host"
 )
 
 // Detail lists the V1 backend detail codes.
@@ -66,6 +71,8 @@ var Detail = []string{
 	QueryRejected,
 	NotHealth,
 	NoSeries,
+	MissingHost,
+	UnexpectedHost,
 }
 
 // Pattern is the shape every reason string must match, Vigil's own and
