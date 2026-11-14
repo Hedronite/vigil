@@ -20,7 +20,7 @@ Facet is the chrome), and it never computes severity from raw data.
 ```
 Simplex ──verdict document (file)──────▶            ──vigil.summary/v0 (pull, read token)──▶ Facet
 Augur   ──verdict document (file)──────▶  Vigil  ◀──vigil.signal/v0 (POST, write token)─────
-prom (lathe) · grafana (lathe) ──named──▶          Cubit / Scry ──▶ informational blocks
+prom (lab) · grafana (lab) ──named──▶          Cubit / Scry ──▶ informational blocks
 ```
 
 ## Reading a summary (V2)
@@ -133,7 +133,8 @@ in the config is exit 5 for every command.
   as `redacted`. A scrape URL, a last error or discovered labels never reach
   the output.
 - `prom query` runs exactly one named query from the config. The host slug is
-  the only template variable and `--host` must be a mapped or public slug.
+  the only template variable and `--host` must be a slug the overlay's
+  `hosts[]` defines.
   The request asks for one series more than the cap, so more results fail
   with `series_cap` instead of a truncated answer; any backend warning fails
   with `query_warnings` instead of a partial answer. Every result carries the
@@ -166,7 +167,7 @@ in the config is exit 5 for every command.
 environment reference, and an optional `vantage` label on the prom backend.
 Backend addresses live in an overlay (`example.overlay.yaml` is the tracked
 example; a real overlay is never committed); the overlay's `hosts[]` maps the
-instance labels a backend reports onto public slugs. Both examples validate
+instance labels a backend reports onto the slugs it prints. Both examples validate
 against the JSON Schemas under `schema/`.
 
 `overall` is the worst severity among the readable verdicts in `verdicts[]`,

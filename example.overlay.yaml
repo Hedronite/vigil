@@ -17,11 +17,11 @@ backends:
 # unmapped. An instance is a bare host or a host with a port, exactly as the
 # backend reports it; brackets hold an IPv6 literal.
 hosts:
-  - slug: castle
+  - slug: core
     instances:
       - "198.51.100.10:9100"
-      - castle.example.invalid
-  - slug: lathe
+      - core.example.invalid
+  - slug: lab
     instances:
       - "198.51.100.20:9100"
-      - lathe.example.invalid
+      - lab.example.invalid

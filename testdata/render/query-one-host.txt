@@ -1,8 +1,8 @@
 BACKEND       prom
-VANTAGE       lathe
+VANTAGE       lab
 NAME          up_by_host
-HOST          castle
+HOST          core
 EVALUATED_AT  2026-11-14T09:00:00Z
 
-HOST    JOB   VALUE
-castle  node  1
+HOST  JOB   VALUE
+core  node  1
