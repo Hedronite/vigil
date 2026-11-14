@@ -1,0 +1,2 @@
+<!doctype html>
+<html><head><title>Grafana</title></head><body><form action="/login"><input name="user"><input name="password"></form></body></html>
