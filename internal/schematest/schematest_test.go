@@ -15,7 +15,7 @@ import (
 	"github.com/Hedronite/vigil/internal/exitcode"
 	"github.com/Hedronite/vigil/internal/reasons"
 	"github.com/santhosh-tekuri/jsonschema/v6"
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 )
 
 // repoRoot walks up from this test file to the module root.
@@ -385,9 +385,10 @@ func derive(doc any) (any, int) {
 	}
 }
 
-// TestNoJSONSchemaInBinary keeps the validator out of the shipped binary: it is
-// a test dependency, and the depguard rule says the same.
-func TestNoJSONSchemaInBinary(t *testing.T) {
+// TestNoTestOnlyPackagesInBinary keeps the schema validator, the YAML decoder
+// and the text package they pull in out of the shipped binary: all three are
+// test dependencies, and the depguard rule says the same.
+func TestNoTestOnlyPackagesInBinary(t *testing.T) {
 	root := repoRoot(t)
 	cmd := exec.Command("go", "list", "-deps", "./cmd/vigil")
 	cmd.Dir = root
@@ -395,9 +396,17 @@ func TestNoJSONSchemaInBinary(t *testing.T) {
 	if err != nil {
 		t.Fatalf("go list: %v", err)
 	}
+	testOnly := []string{
+		"github.com/santhosh-tekuri/jsonschema",
+		"go.yaml.in/yaml",
+		"gopkg.in/yaml",
+		"golang.org/x/text",
+	}
 	for _, line := range strings.Split(string(out), "\n") {
-		if strings.Contains(line, "santhosh-tekuri/jsonschema") {
-			t.Errorf("the binary depends on %s", strings.TrimSpace(line))
+		for _, pkg := range testOnly {
+			if strings.HasPrefix(strings.TrimSpace(line), pkg) {
+				t.Errorf("the binary depends on %s", strings.TrimSpace(line))
+			}
 		}
 	}
 }
