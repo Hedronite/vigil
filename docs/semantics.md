@@ -85,9 +85,11 @@ There is no `/v0/query`, no `/v0/queries`, and no route that takes a URL, a sele
 - **The name is the only handle.** It must match the shape of a configured name (`^[a-z][a-z0-9_]{0,47}$`). A URL, a selector or an expression in its place is a usage error, exit 3, before any file is read. Test: `TestURLShapedArgumentsExitUsage`.
 - **One placeholder, one literal.** The host slug is the only template variable, and the only substitution is the exact text `{{.host}}`. Vigil replaces that text and runs no template engine. Config validation refuses any other `{{` in an `expr`. Fixture: `testdata/config/invalid/expr-second-variable.yaml`.
 - **`--host` is checked before it reaches an expression.** It must be a slug (`^[a-z][a-z0-9-]{0,31}$`) that is listed in the overlay's `hosts[]` or is one of the public slugs. Anything else is exit 3. An unchecked value would let a caller write PromQL through a label matcher.
+- **The expression and the flag must agree.** An `expr` that names `{{.host}}`, run without `--host`, is exit 3 with the code `missing_host`. `--host` given to an `expr` with no placeholder is exit 3 with the code `unexpected_host`. There is no fan-out in V1: one run asks about one host or about the whole expression, never about every host in turn.
 - **Instant queries only.** The request carries `query`, `time` (the pinned clock when `--now` is set), `timeout` and `limit`.
 - **Deadline.** 5s by default and 10s at most, set per query in config as `5s` to `10s`. It is sent as the API `timeout` parameter and enforced by a client deadline. A longer value is refused at load. Fixture: `testdata/config/invalid/timeout-too-long.yaml`.
 - **Series cap.** `max_series` defaults to 200 and may not exceed 200 (the config refuses a higher value). The request asks for `max_series + 1`, so a result that exceeds the cap is detected and fails as `series_cap`. Fixture: `testdata/config/invalid/max-series-too-high.yaml`.
+- **An empty result is an answer.** A query that matches no series exits 0 with `series: []`. It is not an error and carries no detail code; `no_series` belongs to sources whose data is expected but absent.
 - **Warnings.** Any `warnings` in a Prometheus answer fails the call as `query_warnings`. Neither a cap nor a warning ever produces a partial answer: the command prints nothing on stdout.
 - **A rejected expression.** Prometheus answers `bad_data` for an expression it will not parse. That is a defect in the config, not in the backend, so it is `query_rejected` and exit 3.
 - **No silent failover.** Every result carries `backend` and `vantage`. If the configured backend cannot be reached the command exits 4 and says so; it never asks another.
@@ -156,7 +158,7 @@ Tests: `internal/httpx` (`TestRedirectsRefused`, `TestProxyEnvironmentIgnored` w
 
 Two guards keep the rule from eroding. depguard rejects `net/http`, subpackages included, in every non-test file outside `internal/httpx`; `scripts/depguard-selftest.sh` plants each case. `TestNoListenerBeforeV3` parses every non-test Go file and fails on a listener or a server, so V1 can dial out and cannot listen. V3 relaxes that test on purpose.
 
-The V1 detail codes live in `internal/reasons.Detail`: `unreachable`, `timeout`, `body_cap`, `redirect_refused`, `http_status`, `series_cap`, `query_warnings`, `query_rejected`, `not_health` and `no_series`. They appear in `sources[].detail_code` and as the `code` of a `vigil.error/v0`. They are never an address, a URL or text copied from a backend.
+The V1 detail codes live in `internal/reasons.Detail`: `unreachable`, `timeout`, `body_cap`, `redirect_refused`, `http_status`, `series_cap`, `query_warnings`, `query_rejected`, `not_health`, `no_series`, `missing_host` and `unexpected_host`. They appear in `sources[].detail_code` and as the `code` of a `vigil.error/v0`. They are never an address, a URL or text copied from a backend.
 
 ## 13. What `prom targets` and `prom query` may print
 
@@ -172,9 +174,9 @@ The schemas back the rules from the other side. `vigil.targets/v0` and `vigil.qu
 
 ## 14. Grafana health
 
-`vigil grafana health` calls `GET /api/health` on the named Grafana backend, with a 2s deadline and a 16 KiB cap, and follows no redirect. Healthy means all of: status 200, a JSON body, and `database` equal to `ok`. Everything else is not healthy, and says why:
+`vigil grafana health` calls `GET /api/health` on the named Grafana backend, with a 2s deadline and a 16 KiB cap, and follows no redirect. Healthy means all of: status 200, a JSON body, and `database` equal to `ok`. Healthy prints `vigil.health/v0` and exits 0. Anything else is a failure: exit 4, one `vigil.error/v0` line on stderr whose `code` says why, and empty stdout.
 
-| Answer | Detail code |
+| Answer | Code |
 | --- | --- |
 | a login page, or any body that is not JSON | `not_health` |
 | JSON whose `database` is not `ok` | `not_health` |
@@ -184,13 +186,13 @@ The schemas back the rules from the other side. `vigil.targets/v0` and `vigil.qu
 | connection refused or reset | `unreachable` |
 | a body over 16 KiB | `body_cap` |
 
-A login page is not health. Grafana is a source, never an authority: its state appears in `sources[]` and moves nothing else, not `overall`, not the chip and not the exit code of a summary. Fixture: `grafana-down`.
+A login page is not health. Grafana is a source, never an authority. The command fails when Grafana is not healthy, because that is the question it was asked. `vigil sources` asks the same question as part of a listing, so there the unhealthy state is data: the Grafana row says `unavailable` with its detail code, and the command still exits 0. Nothing about Grafana moves `overall`, the chip or the exit code of a summary. Fixture: `grafana-down`.
 
 ## 15. The CLI contract
 
 Six commands exist: `version`, `prom targets`, `prom query`, `grafana health` and `sources`, with `help` generated by the framework. The global flags are `--config PATH`, `--overlay PATH`, `--json` and `--now RFC3339`.
 
-- **`--json` prints the document alone.** On success, stdout holds one JSON document and nothing else: `vigil.targets/v0`, `vigil.query/v0`, `vigil.health/v0` or `vigil.sources/v0`. Without it the same document is rendered as a table, and a table never shows a field the document lacks. `version` prints one line.
+- **`--json` prints the document alone.** On success, stdout holds one JSON document and nothing else: `vigil.targets/v0`, `vigil.query/v0`, `vigil.health/v0` (only when healthy) or `vigil.sources/v0`. Without it the same document is rendered as a table, and a table never shows a field the document lacks. `version` prints one line.
 - **`--now` pins the clock.** It is an RFC 3339 time. It sets the `time` of an instant query, `checked_at`, `evaluated_at` and every age in a table, so two runs against the same answers print the same bytes. Anything else is exit 3.
 - **Every failure is one line on stderr.** It is a `vigil.error/v0` document, `{"apiVersion":"vigil.error/v0","error":{"code":"...","message":"..."}}`, followed by a newline, and stdout is empty. This holds for usage errors and a recovered panic too (code `internal`). A command's output is held until it succeeds, so a failure part-way cannot leave half a document behind.
 - **The `message` is fixed text.** It is written by Vigil, never copied from an argument, a backend or an error: it holds no URL, no address and no token. The `code` is stable; scripts read the code.
@@ -206,9 +208,9 @@ The table in section 5 holds. Per command, these are the answers:
 | Command | 0 | 3 | 4 |
 | --- | --- | --- | --- |
 | `prom targets` | answered | usage or config | backend unreachable, HTTP error, body cap, timeout |
-| `prom query` | answered | usage, config, `query_rejected` | unreachable, `series_cap`, `query_warnings`, timeout, body cap |
-| `grafana health` | healthy | usage or config | not healthy or unreachable (`not_health`, `http_status`, `redirect_refused`, `timeout`, `unreachable`) |
-| `sources` | rendered; a row's state is data | usage or config | never |
+| `prom query` | answered, including an empty result | usage, config, `missing_host`, `unexpected_host`, `query_rejected` | unreachable, `series_cap`, `query_warnings`, timeout, body cap |
+| `grafana health` | healthy; prints the document | usage or config | not healthy or unreachable (`not_health`, `http_status`, `redirect_refused`, `timeout`, `unreachable`); error line, empty stdout |
+| `sources` | rendered; an unhealthy or unreachable row is data | usage or config | never |
 
 A wildcard `listen` in config is exit 5 for any command that loads the config (section 6). A recovered panic is exit 6. No error path exits 0, 1 or 2: a backend command never produces a verdict.
 
