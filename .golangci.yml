@@ -21,6 +21,16 @@ linters:
               desc: Vigil never runs programs; writers publish files and Vigil reads them.
             - pkg: github.com/santhosh-tekuri/jsonschema
               desc: The schema validator is for tests only and must not link into the binary.
+        # One bounded client talks HTTP. Everything else goes through it, so
+        # no backend client can follow a redirect, honour a proxy variable or
+        # read an unbounded body. Tests may use net/http and httptest.
+        nethttp:
+          files:
+            - "!$test"
+            - "!**/internal/httpx/*.go"
+          deny:
+            - pkg: net/http
+              desc: All HTTP goes through internal/httpx (GET only, no redirects, no proxy, capped, bounded).
 
 formatters:
   enable:

@@ -26,8 +26,12 @@
 # placeholders; an empty, list or block value is a finding. The hostname
 # rule treats any dotted name in a fixture as a hostname, after blanking
 # the exact schema URL values, "$id" values under the two Hedronite repos,
-# file names, version numbers and the values of "kind" and "source" (open
-# vocabularies that allow dots; the TLD rule still runs over those). Bytes
+# "apiVersion" values of the form <product>.<name>/v<N> for the five
+# products (anchored on the key, so a new schema needs no scrub edit and the
+# same name under any other key is still a finding), file names, version
+# numbers, the values of "kind" and "source" (open vocabularies that
+# allow dots; the TLD rule still runs over those) and a "value" that is a
+# numeric string such as "1.5e-3" or "-0.5" (Prometheus sample values). Bytes
 # above 0x7f count as name characters, so an accented or lookalike name is
 # still a name. A real name placed under any other key with no dot is not
 # seen here; review covers that.
@@ -134,8 +138,9 @@ s#([0-9]{2})\.[0-9]{1,9}Z#\1Z#g
 s#(^|[^A-Za-z0-9_.-])([A-Za-z0-9_-]+\.)*example\.invalid([^A-Za-z0-9_-]|$)#\1\3#g
 s#(^|[^A-Za-z0-9_.-])([A-Za-z0-9_-]+\.)*example\.invalid([^A-Za-z0-9_-]|$)#\1\3#g
 s#"(kind|source)"[[:space:]]*:[[:space:]]*"[a-z][a-z0-9_.-]{0,63}"#"\1":""#g
-s#(^|[^A-Za-z0-9_.-])(vigil|simplex|augur|cubit|scry)\.(summary|signal|error|config|overlay|probe|verdict|status)(/v[0-9]+)?([^A-Za-z0-9._-]|$)#\1\5#g
-s#(^|[^A-Za-z0-9_.-])(vigil|simplex|augur|cubit|scry)\.(summary|signal|error|config|overlay|probe|verdict|status)(/v[0-9]+)?([^A-Za-z0-9._-]|$)#\1\5#g
+s#"value"[[:space:]]*:[[:space:]]*"([-+]?[0-9]+(\.[0-9]+)?([eE][-+]?[0-9]+)?|[-+]?Inf|NaN)"#"value":""#g
+s#(^|[^A-Za-z0-9_.-])(["']?apiVersion["']?[[:space:]]*:[[:space:]]*["']?)(vigil|simplex|augur|scry|cubit)\.[a-z]+/v[0-9]+(["']?)([^A-Za-z0-9._/-]|$)#\1\2\4\5#g
+s#(^|[^A-Za-z0-9_.-])(["']?apiVersion["']?[[:space:]]*:[[:space:]]*["']?)(vigil|simplex|augur|scry|cubit)\.[a-z]+/v[0-9]+(["']?)([^A-Za-z0-9._/-]|$)#\1\2\4\5#g
 s#(^|[^A-Za-z0-9_.-])([A-Za-z0-9_-]+\.)+(json|yaml|yml|txt|bin|token)([^A-Za-z0-9._-]|$)#\1\4#g
 s#(^|[^A-Za-z0-9_.-])([A-Za-z0-9_-]+\.)+(json|yaml|yml|txt|bin|token)([^A-Za-z0-9._-]|$)#\1\4#g
 s#(^|[^A-Za-z0-9_.-])v?[0-9]+(\.[0-9]+)+([^A-Za-z0-9_-]|$)#\1\3#g
@@ -563,7 +568,16 @@ HOST: 'tower'
 "kind": "deploy.start", "source": "ci.build"
 "generated_at": "2026-11-13T18:00:00.123456Z"
 tool 1.27.3, schema v0.1.0, file config.yaml and document.json
-"apiVersion": "vigil.summary/v0", "x": "simplex.probe/v0"
+"apiVersion": "vigil.summary/v0", "n": 1
+{"apiVersion": "vigil.sources/v0"} {"apiVersion": "vigil.targets/v0"} {"apiVersion": "vigil.query/v0"}
+{"apiVersion": "vigil.health/v0"} {"apiVersion": "vigil.config/v0"} {"apiVersion": "vigil.overlay/v0"}
+{"apiVersion": "vigil.error/v0"} {"apiVersion": "vigil.signal/v0"} {"apiVersion": "simplex.probe/v0"}
+{"apiVersion": "augur.verdict/v0"} {"apiVersion": "scry.status/v0"} {"apiVersion": "cubit.status/v1"}
+apiVersion: vigil.config/v0
+apiVersion: 'vigil.overlay/v0'
+  apiVersion:   vigil.query/v0
+{"value": "1.5e-3"} {"value": "-0.5"} {"value": "+1E10"} {"value": "42"}
+{"value": "Inf"} {"value": "+Inf"} {"value": "-Inf"} {"value": "NaN"}
 listen: localhost:10082
 {"hostname": "x", "ghost": "y", "localhost": "z", "hosts": ["castle"]}
 {"s": "caf\u00e9 \u0001 \u007f \u0000 \n \t"}
@@ -738,6 +752,26 @@ HOST: somemachine
 {"$id": "https://github.com/Hedronite/vigil/schema/x.json.prom.corp.de"}
 {"$id": "https://github.com/Hedronite/vigil/other/x.json"}
 {"$id": "https://github.com/Hedronite/vigil/schema/x.json", "n": "prom.corp.de"}
+{"note": "vigil.summary/v0"}
+{"x": "simplex.probe/v0", "apiVersion": "vigil.summary/v0"}
+{"apiVersion": "vigil.summary/v0", "note": "vigil.config/v0"}
+{"apiVersion": "acme.summary/v0"}
+{"apiVersion": "vigil.Summary/v0"}
+{"apiVersion": "vigil.summary"}
+{"apiVersion": "vigil.summary/v0.prom.corp.de"}
+{"apiVersion": "vigil.summary/v0".prom.corp.de}
+{"xapiVersion": "vigil.summary/v0"}
+{"a.apiVersion": "vigil.summary/v0"}
+{"apiVersions": "vigil.summary/v0"}
+{"value": "prom.corp.de"}
+{"note": "prom.corp.de"}
+{"note": "1.5e-3"}
+{"value": "1.5e-3.prom.corp.de"}
+{"value": "1.5.corp.de"}
+{"value": "1.5e-3x"}
+{"xvalue": "1.5e-3"}
+{"a.value": "1.5e-3"}
+{"value": "Infinity.prom.corp.de"}
 EOF
 	# The accent shape above is written as a literal here: build it for real.
 	mkdir "$tmp/accent"
