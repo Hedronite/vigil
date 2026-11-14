@@ -88,7 +88,7 @@ func TestHealth(t *testing.T) {
 	}{
 		{"healthy", http.StatusOK, fixture(t, "healthy.json"), ""},
 		{"database down", http.StatusOK, fixture(t, "db-down.json"), reasons.NotHealth},
-		{"login page", http.StatusOK, fixture(t, "login.html"), reasons.NotHealth},
+		{"login page", http.StatusOK, fixture(t, "login-page.txt"), reasons.NotHealth},
 		{"empty body", http.StatusOK, "", reasons.NotHealth},
 		{"server error", http.StatusInternalServerError, `{"database":"ok"}`, reasons.HTTPStatus},
 		{"not found", http.StatusNotFound, "no such path", reasons.HTTPStatus},
