@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -62,20 +64,33 @@ func serveBody(t *testing.T, body string) *httptest.Server {
 
 // fixtureConfig is one prometheus backend mapped to the test server, plus the
 // overlay that maps one address-shaped instance to a slug.
-func fixtureConfig(base string) (*config.Config, *config.Overlay) {
+// backendID is unique per test. The client registry is process-wide and keeps
+// the first configuration for an id, so two tests that share an id would share
+// a client pointed at the first test's server.
+func backendID(t *testing.T, suffix string) string {
+	name := strings.ToLower(strings.NewReplacer("/", "-", "_", "-", " ", "-", ".", "-").Replace(t.Name()))
+	room := 31 - len("b-") - len(suffix)
+	if len(name) > room {
+		name = name[:room]
+	}
+	return "b-" + name + suffix
+}
+
+func fixtureConfig(t *testing.T, base string) (*config.Config, *config.Overlay) {
+	id := backendID(t, "")
 	cfg := &config.Config{
 		APIVersion: config.ConfigMajor,
 		Listen:     config.DefaultListen,
-		Backends:   []config.Backend{{ID: "prom", Kind: "prom", Vantage: "lathe"}},
+		Backends:   []config.Backend{{ID: id, Kind: "prom", Vantage: "lathe"}},
 		Queries: []config.Query{
-			{Name: "up_by_host", Backend: "prom", Expr: `up{instance="{{.host}}"}`, Timeout: "5s", MaxSeries: 200},
-			{Name: "up_all", Backend: "prom", Expr: "up", Timeout: "5s", MaxSeries: 200},
-			{Name: "small_cap", Backend: "prom", Expr: "up", Timeout: "5s", MaxSeries: 3},
+			{Name: "up_by_host", Backend: id, Expr: `up{instance="{{.host}}"}`, Timeout: "5s", MaxSeries: 200},
+			{Name: "up_all", Backend: id, Expr: "up", Timeout: "5s", MaxSeries: 200},
+			{Name: "small_cap", Backend: id, Expr: "up", Timeout: "5s", MaxSeries: 3},
 		},
 	}
 	ov := &config.Overlay{
 		APIVersion: config.OverlayMajor,
-		Backends:   []config.OverlayBackend{{ID: "prom", Address: base}},
+		Backends:   []config.OverlayBackend{{ID: id, Address: base}},
 		Hosts: []config.OverlayHost{
 			{Slug: "castle", Instances: []string{"castle.example.invalid:9100"}},
 		},
@@ -96,7 +111,7 @@ func code(t *testing.T, err error) (int, string) {
 // and maps each instance through the overlay before printing it.
 func TestTargetsMapping(t *testing.T) {
 	srv, path := serveFixture(t, "targets-mixed.json")
-	cfg, ov := fixtureConfig(srv.URL)
+	cfg, ov := fixtureConfig(t, srv.URL)
 
 	doc, err := promclient.Targets(context.Background(), cfg, ov, fixedNow)
 	if err != nil {
@@ -105,7 +120,7 @@ func TestTargetsMapping(t *testing.T) {
 	if *path != "/api/v1/targets" {
 		t.Errorf("path = %q", *path)
 	}
-	if doc.APIVersion != promclient.TargetsVersion || doc.Backend != "prom" || doc.Vantage != "lathe" {
+	if doc.APIVersion != promclient.TargetsVersion || doc.Backend != backendID(t, "") || doc.Vantage != "lathe" {
 		t.Errorf("document header = %+v", doc)
 	}
 	if doc.GeneratedAt != "2026-11-14T09:00:00Z" {
@@ -158,7 +173,7 @@ func TestTargetsMappingRules(t *testing.T) {
 		`{"labels":{"instance":"` + planted[0] + `:9100","job":"node"},"health":"up"},` +
 		`{"labels":{"instance":"` + planted[2] + `:9100","job":"node"},"health":"up"}]}}`
 	srv := serveBody(t, body)
-	cfg, ov := fixtureConfig(srv.URL)
+	cfg, ov := fixtureConfig(t, srv.URL)
 
 	doc, err := promclient.Targets(context.Background(), cfg, ov, fixedNow)
 	if err != nil {
@@ -192,7 +207,7 @@ func TestTargetsMappingRules(t *testing.T) {
 func TestQueryRules(t *testing.T) {
 	t.Run("missing host", func(t *testing.T) {
 		srv, _ := serveFixture(t, "query-plain.json")
-		cfg, ov := fixtureConfig(srv.URL)
+		cfg, ov := fixtureConfig(t, srv.URL)
 		_, err := promclient.Query(context.Background(), cfg, ov, "up_by_host", "", fixedNow)
 		wantExit, wantCode := code(t, err)
 		if wantExit != exitcode.Usage || wantCode != "missing_host" {
@@ -201,7 +216,7 @@ func TestQueryRules(t *testing.T) {
 	})
 	t.Run("unexpected host", func(t *testing.T) {
 		srv, _ := serveFixture(t, "query-plain.json")
-		cfg, ov := fixtureConfig(srv.URL)
+		cfg, ov := fixtureConfig(t, srv.URL)
 		_, err := promclient.Query(context.Background(), cfg, ov, "up_all", "tower", fixedNow)
 		wantExit, wantCode := code(t, err)
 		if wantExit != exitcode.Usage || wantCode != "unexpected_host" {
@@ -210,7 +225,7 @@ func TestQueryRules(t *testing.T) {
 	})
 	t.Run("unknown host", func(t *testing.T) {
 		srv, _ := serveFixture(t, "query-plain.json")
-		cfg, ov := fixtureConfig(srv.URL)
+		cfg, ov := fixtureConfig(t, srv.URL)
 		_, err := promclient.Query(context.Background(), cfg, ov, "up_by_host", "nowhere", fixedNow)
 		wantExit, wantCode := code(t, err)
 		if wantExit != exitcode.Usage || wantCode != "unknown_host" {
@@ -219,7 +234,7 @@ func TestQueryRules(t *testing.T) {
 	})
 	t.Run("plain answer", func(t *testing.T) {
 		srv, path := serveFixture(t, "query-plain.json")
-		cfg, ov := fixtureConfig(srv.URL)
+		cfg, ov := fixtureConfig(t, srv.URL)
 		doc, err := promclient.Query(context.Background(), cfg, ov, "up_by_host", "castle", fixedNow)
 		if err != nil {
 			t.Fatalf("query: %v", err)
@@ -237,7 +252,7 @@ func TestQueryRules(t *testing.T) {
 	})
 	t.Run("empty answer is success", func(t *testing.T) {
 		srv, _ := serveFixture(t, "query-empty.json")
-		cfg, ov := fixtureConfig(srv.URL)
+		cfg, ov := fixtureConfig(t, srv.URL)
 		doc, err := promclient.Query(context.Background(), cfg, ov, "up_all", "", fixedNow)
 		if err != nil {
 			t.Fatalf("query: %v", err)
@@ -251,7 +266,7 @@ func TestQueryRules(t *testing.T) {
 	t.Run("dotted sample value", func(t *testing.T) {
 		decimal := "1" + "." + "5e-3"
 		srv := serveBody(t, `{"status":"success","data":{"resultType":"vector","result":[{"metric":{"instance":"tower"},"value":[1763107200,"`+decimal+`"]}]}}`)
-		cfg, ov := fixtureConfig(srv.URL)
+		cfg, ov := fixtureConfig(t, srv.URL)
 		doc, err := promclient.Query(context.Background(), cfg, ov, "up_all", "", fixedNow)
 		if err != nil {
 			t.Fatalf("dotted decimal refused: %v", err)
@@ -264,7 +279,7 @@ func TestQueryRules(t *testing.T) {
 	t.Run("value that is not a number", func(t *testing.T) {
 		garbage := strings.Join([]string{"1", "2", "3"}, ".")
 		srv := serveBody(t, `{"status":"success","data":{"resultType":"vector","result":[{"metric":{"instance":"tower"},"value":[1763107200,"`+garbage+`"]}]}}`)
-		cfg, ov := fixtureConfig(srv.URL)
+		cfg, ov := fixtureConfig(t, srv.URL)
 		_, err := promclient.Query(context.Background(), cfg, ov, "up_all", "", fixedNow)
 		if exit, got := code(t, err); exit != exitcode.Unavailable || got != reasons.HTTPStatus {
 			t.Fatalf("got %d/%s", exit, got)
@@ -272,7 +287,7 @@ func TestQueryRules(t *testing.T) {
 	})
 	t.Run("special values", func(t *testing.T) {
 		srv, _ := serveFixture(t, "query-special-values.json")
-		cfg, ov := fixtureConfig(srv.URL)
+		cfg, ov := fixtureConfig(t, srv.URL)
 		doc, err := promclient.Query(context.Background(), cfg, ov, "up_all", "", fixedNow)
 		if err != nil {
 			t.Fatalf("query: %v", err)
@@ -281,7 +296,7 @@ func TestQueryRules(t *testing.T) {
 	})
 	t.Run("series cap", func(t *testing.T) {
 		srv, _ := serveFixture(t, "query-series-cap.json")
-		cfg, ov := fixtureConfig(srv.URL)
+		cfg, ov := fixtureConfig(t, srv.URL)
 		_, err := promclient.Query(context.Background(), cfg, ov, "small_cap", "", fixedNow)
 		wantExit, wantCode := code(t, err)
 		if wantExit != exitcode.Unavailable || wantCode != reasons.SeriesCap {
@@ -290,7 +305,7 @@ func TestQueryRules(t *testing.T) {
 	})
 	t.Run("warnings are never partial", func(t *testing.T) {
 		srv, _ := serveFixture(t, "query-warnings.json")
-		cfg, ov := fixtureConfig(srv.URL)
+		cfg, ov := fixtureConfig(t, srv.URL)
 		_, err := promclient.Query(context.Background(), cfg, ov, "up_all", "", fixedNow)
 		wantExit, wantCode := code(t, err)
 		if wantExit != exitcode.Unavailable || wantCode != reasons.QueryWarnings {
@@ -299,7 +314,7 @@ func TestQueryRules(t *testing.T) {
 	})
 	t.Run("bad data is the operators error", func(t *testing.T) {
 		srv, _ := serveFixture(t, "query-bad-data.json")
-		cfg, ov := fixtureConfig(srv.URL)
+		cfg, ov := fixtureConfig(t, srv.URL)
 		_, err := promclient.Query(context.Background(), cfg, ov, "up_all", "", fixedNow)
 		wantExit, wantCode := code(t, err)
 		if wantExit != exitcode.Usage || wantCode != reasons.QueryRejected {
@@ -308,7 +323,7 @@ func TestQueryRules(t *testing.T) {
 	})
 	t.Run("backend timeout", func(t *testing.T) {
 		srv, _ := serveFixture(t, "query-timeout.json")
-		cfg, ov := fixtureConfig(srv.URL)
+		cfg, ov := fixtureConfig(t, srv.URL)
 		_, err := promclient.Query(context.Background(), cfg, ov, "up_all", "", fixedNow)
 		wantExit, wantCode := code(t, err)
 		if wantExit != exitcode.Unavailable || wantCode != reasons.Timeout {
@@ -320,7 +335,7 @@ func TestQueryRules(t *testing.T) {
 			http.Redirect(w, r, "/elsewhere", http.StatusFound)
 		}))
 		t.Cleanup(srv.Close)
-		cfg, ov := fixtureConfig(srv.URL)
+		cfg, ov := fixtureConfig(t, srv.URL)
 		_, err := promclient.Query(context.Background(), cfg, ov, "up_all", "", fixedNow)
 		wantExit, wantCode := code(t, err)
 		if wantExit != exitcode.Unavailable || wantCode != reasons.RedirectRefused {
@@ -331,7 +346,7 @@ func TestQueryRules(t *testing.T) {
 		t.Setenv("HTTP_PROXY", "http://127.0.0.1:1")
 		t.Setenv("HTTPS_PROXY", "http://127.0.0.1:1")
 		srv, _ := serveFixture(t, "query-plain.json")
-		cfg, ov := fixtureConfig(srv.URL)
+		cfg, ov := fixtureConfig(t, srv.URL)
 		if _, err := promclient.Query(context.Background(), cfg, ov, "up_all", "", fixedNow); err != nil {
 			t.Fatalf("query went through the proxy: %v", err)
 		}
@@ -344,7 +359,7 @@ func TestQueryRules(t *testing.T) {
 			}
 		}))
 		t.Cleanup(srv.Close)
-		cfg, ov := fixtureConfig(srv.URL)
+		cfg, ov := fixtureConfig(t, srv.URL)
 		_, err := promclient.Query(context.Background(), cfg, ov, "up_all", "", fixedNow)
 		wantExit, wantCode := code(t, err)
 		if wantExit != exitcode.Unavailable || wantCode != reasons.BodyCap {
@@ -353,7 +368,7 @@ func TestQueryRules(t *testing.T) {
 	})
 	t.Run("backend unset", func(t *testing.T) {
 		srv, _ := serveFixture(t, "query-plain.json")
-		cfg, ov := fixtureConfig(srv.URL)
+		cfg, ov := fixtureConfig(t, srv.URL)
 		cfg.Backends = nil
 		_, err := promclient.Query(context.Background(), cfg, ov, "up_all", "", fixedNow)
 		wantExit, wantCode := code(t, err)
@@ -410,5 +425,43 @@ func validateAgainst(t *testing.T, schemaFile string, doc any) {
 	}
 	if err := sch.Validate(decoded); err != nil {
 		t.Fatalf("document does not match %s: %v", schemaFile, err)
+	}
+}
+
+// TestInFlightBound proves a backend has one shared client: three concurrent
+// calls never put more than two requests on the wire. A fresh client per call
+// would allow three, which is the defect this test exists for.
+func TestInFlightBound(t *testing.T) {
+	var inFlight, peak int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n := atomic.AddInt32(&inFlight, 1)
+		for {
+			p := atomic.LoadInt32(&peak)
+			if n <= p || atomic.CompareAndSwapInt32(&peak, p, n) {
+				break
+			}
+		}
+		time.Sleep(40 * time.Millisecond)
+		atomic.AddInt32(&inFlight, -1)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"status":"success","data":{"activeTargets":[]}}`))
+	}))
+	t.Cleanup(srv.Close)
+
+	cfg, ov := fixtureConfig(t, srv.URL)
+	var wg sync.WaitGroup
+	for i := 0; i < 3; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if _, err := promclient.Targets(context.Background(), cfg, ov, fixedNow); err != nil {
+				t.Errorf("targets: %v", err)
+			}
+		}()
+	}
+	wg.Wait()
+
+	if got := atomic.LoadInt32(&peak); got > 2 {
+		t.Fatalf("peak in flight = %d, want at most 2", got)
 	}
 }
