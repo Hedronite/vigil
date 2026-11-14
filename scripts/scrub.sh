@@ -48,6 +48,19 @@ set -u
 set -o pipefail
 export LC_ALL=C
 
+# Descriptor floor (PM ruling, G1 round 3). bash 3.2 can fail a redirect or a
+# dup half-way, print a diagnostic, and carry on, so no check below can be
+# trusted at a very low limit. Refuse to run under the floor instead.
+FD_FLOOR=64
+fd_lim=$(ulimit -n) || {
+	echo "scrub: cannot read the descriptor limit" >&2
+	exit 2
+}
+if [[ $fd_lim =~ ^[0-9]+$ ]] && [ "$fd_lim" -lt "$FD_FLOOR" ]; then
+	echo "scrub: descriptor limit $fd_lim is below $FD_FLOOR; raise it with ulimit -n $FD_FLOOR and run again" >&2
+	exit 2
+fi
+
 SELF_DIR=$(cd "$(dirname "$0")" && pwd) || exit 2
 SELF=$SELF_DIR/$(basename "$0")
 
@@ -97,19 +110,19 @@ add_rule rfc1918-10 all -E "${L}10\.${OCT}\.${OCT}\.${OCT}${R}" "private 10/8 li
 add_rule rfc1918-172 all -E "${L}172\.(1[6-9]|2[0-9]|3[01])\.${OCT}\.${OCT}${R}" "private 172.16/12 literal"
 add_rule rfc1918-192 all -E "${L}192\.168\.${OCT}\.${OCT}${R}" "private 192.168/16 literal"
 add_rule tailnet-ula all -Ei 'fd7a:115c:'a1e0 "tailnet IPv6 literal"
-add_rule ts-net all -E '[A-Za-z0-9-]+\.ts\.net' "tailnet hostname"
+add_rule ts-net all -Ei '[A-Za-z0-9-]+\.ts\.net' "tailnet hostname"
 add_rule token-github all -E '(gh[pousr]_[A-Za-z0-9]{36}|github_pat_[A-Za-z0-9_]{22,})' "GitHub token shape"
 add_rule token-slack all -E 'xox[abprs]-[A-Za-z0-9-]{10,}' "Slack token shape"
 add_rule token-aws all -E 'AKIA[0-9A-Z]{16}' "AWS key id shape"
 add_rule token-privkey all -E '-----BEGIN [A-Z ]*PRIVATE KEY-----' "private key block"
 add_rule token-bearer all -E '[Bb]earer[[:space:]]+[A-Za-z0-9._~+/-]{24,}' "bearer credential"
 add_rule token-generic all -Ei '(token|secret|passw(or)?d|api[_-]?key)["'"'"']?[[:space:]]*[:=][[:space:]]*["'"'"']?[A-Za-z0-9+_-]{32,}' "credential assignment"
+add_rule json-escape fixture -E '\\u00([2-6][0-9A-Fa-f]|7[0-9A-Ea-e])' "JSON escape of a printable ASCII character"
 add_rule fqdn fixture -Ei '(^|[^A-Za-z0-9-])[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?(\.[A-Za-z0-9-]+)*\.(com|net|org|io|dev|app|ai|co|me|xyz|cloud|local|lan|internal|corp|home|arpa)([^A-Za-z0-9-]|$)' "hostname in fixture or example"
 
 FINDINGS=0
 INTERNAL=0
 GREP_RC=0
-QUIET=0
 TAGS_SEEN=" "
 TMPD=$(mktemp -d "${TMPDIR:-/tmp}/scrub.XXXXXX") || exit 2
 trap 'rm -rf "$TMPD"' EXIT
@@ -131,7 +144,7 @@ SED
 
 report() { # path line tag message
 	local p=${1//[[:cntrl:]]/?}
-	[ "$QUIET" = 1 ] || printf '%s:%s: [%s] %s\n' "$p" "$2" "$3" "$4"
+	printf '%s:%s: [%s] %s\n' "$p" "$2" "$3" "$4"
 	FINDINGS=$((FINDINGS + 1))
 	case "$TAGS_SEEN" in *" $3 "*) ;; *) TAGS_SEEN="$TAGS_SEEN$3 " ;; esac
 }
@@ -287,6 +300,13 @@ count_nul() {
 	printf '%s' "$n"
 }
 
+# scan_name path fixture(0|1): run the content rules over a tracked path, so
+# an address or a tailnet name cannot hide in a file name.
+scan_name() {
+	printf '%s\n' "$1" >"$TMPD/name" || { internal "cannot write the name file"; return; }
+	scan_file "$TMPD/name" "$1" "$2"
+}
+
 # scan_list LISTFILE mode: LISTFILE holds NUL-terminated paths. Mode
 # "tracked" decides fixture scope per path, mode "fixtures" treats every
 # file as a fixture. Every listed path is accounted for: scanned, reported,
@@ -300,6 +320,7 @@ scan_list() {
 		handled=$((handled + 1))
 		if [ "$mode" = tracked ]; then
 			case "$f" in testdata/scrub/*) continue ;; esac
+			if is_fixture_path "$f"; then scan_name "$f" 1; else scan_name "$f" 0; fi
 		fi
 		if [ -L "$f" ]; then
 			report "$f" 1 symlink "symbolic link is not scanned; replace it with the file"
@@ -444,71 +465,21 @@ tracked_rc() { # repo dir
 	) >"$TMPD/tracked_rc.out" 2>&1
 }
 
-# canary: before any real scan, run the scan machinery on a file that must
-# produce a CGNAT, a hostname and a machine-name finding, and on a planted
-# directory and an overlay that must each be a finding. If the shell cannot
-# open descriptors, redirect, or fork (a low ulimit -n made bash drop
-# redirections and report clean), the canary misses and the run exits 2
-# before it can say clean about the real tree.
-canary_fail() {
-	echo "scrub: self-check failed ($1); the environment cannot run the scan, refusing to report" >&2
-	exit 2
-}
-
-canary() {
-	local d=$TMPD/canary t addr
-	addr="100.64.$((6 + 6)).34"
-	QUIET=1
-	FINDINGS=0
-	INTERNAL=0
-	TAGS_SEEN=" "
-	mkdir "$d" "$d/dir" "$d/pin" "$d/repo" || canary_fail "mkdir"
-	printf '{"host": "somemachine"}\nx = "%s"\nprom.corp.de\n' "$addr" >"$d/dir/c.json" || canary_fail "write"
-	scan_dir "$d/dir"
-	[ "$INTERNAL" -eq 0 ] || canary_fail "scan"
-	for t in cgnat fqdn host-slug; do
-		case "$TAGS_SEEN" in *" $t "*) ;; *) canary_fail "$t did not fire" ;; esac
-	done
-	printf 'x\n' >"$d/pin/stray.txt" || canary_fail "write"
-	FINDINGS=0
-	check_planted_pins "$d/pin"
-	[ "$INTERNAL" -eq 0 ] && [ "$FINDINGS" -ge 1 ] || canary_fail "planted-pin did not fire"
-	git init -q "$d/repo" || canary_fail "git"
-	: >"$d/repo/prod.overlay.yaml" || canary_fail "write"
-	git -C "$d/repo" add -A || canary_fail "git"
-	FINDINGS=0
-	check_overlay "$d/repo"
-	[ "$INTERNAL" -eq 0 ] && [ "$FINDINGS" -ge 1 ] || canary_fail "overlay did not fire"
-	QUIET=0
-	FINDINGS=0
-	INTERNAL=0
-	TAGS_SEEN=" "
-}
-
-# low_fd_rc N MODE [ARG]: run this script under ulimit -n N and print its
-# exit code. A 20 s watchdog kills a run that spins and prints 124.
-low_fd_rc() {
-	local n=$1 mode=$2 arg=${3:-} pid wd rc
+# rc_at N ARGS...: run this script under ulimit -n N and print its exit code
+# (99 when the limit cannot be set, for example above the caller's own).
+rc_at() {
+	local n=$1 rc
+	shift
 	(
-		ulimit -n "$n" || exit 99
-		if [ "$mode" = tree ]; then
-			SCRUB_ROOT=$arg exec bash "$SELF" tree
-		fi
-		exec bash "$SELF" "$mode" "$arg"
-	) >"$TMPD/low.out" 2>&1 &
-	pid=$!
-	( sleep 20; kill -9 "$pid" 2>/dev/null ) >/dev/null 2>&1 &
-	wd=$!
-	wait "$pid"
+		ulimit -n "$n" 2>/dev/null || exit 99
+		exec bash "$SELF" "$@"
+	) >/dev/null 2>&1
 	rc=$?
-	kill "$wd" 2>/dev/null
-	if [ "$rc" -eq 137 ]; then rc=124; fi
-	rm -f "$TMPD/low.out"
 	printf '%s' "$rc"
 }
 
 selftest() {
-	local fail=0 tmp want p i n rc cg ten
+	local fail=0 tmp want p i n rc cg ten tsn
 	tmp=$(mktemp -d "${TMPDIR:-/tmp}/scrub-selftest.XXXXXX") || return 2
 	trap 'rm -rf "$tmp"' RETURN
 	FINDINGS=0
@@ -518,6 +489,7 @@ selftest() {
 	cg="100.64.$((6 + 6)).34"
 	ten="1$((0 * 7))"
 	ten="$ten.1.2.3"
+	tsn="box.TS.N""ET"
 
 	# 1. The planted files must fail, and every file rule must fire on them.
 	if [ ! -d testdata/scrub ]; then
@@ -552,11 +524,12 @@ selftest() {
 	printf 'k = ghp_%s\n' "$(printf 'a%.0s' $(seq 1 36))" >"$tmp/gen/github.txt"
 	printf 'k = xoxb-%s\n' "1234567890-abcdefghij" >"$tmp/gen/slack.txt"
 	printf '%s%s%s\n' '-----BEGIN ' 'RSA PRIVATE KEY' '-----' >"$tmp/gen/key.txt"
+	printf '{"%s": "x"}\n' '\u0068ost' >"$tmp/gen/escape.json"
 	scan_dir "$tmp/gen" >"$tmp/gen.out"
 
 	printf 'bin\0 100.66.%s.2\n' 1 >"$tmp/gen/blob.bin"
 	scan_dir "$tmp/gen" >"$tmp/gen2.out"
-	for want in cgnat rfc1918-10 rfc1918-172 rfc1918-192 tailnet-ula ts-net token-github token-slack token-aws token-privkey token-bearer token-generic fqdn host-slug; do
+	for want in cgnat rfc1918-10 rfc1918-172 rfc1918-192 tailnet-ula ts-net token-github token-slack token-aws token-privkey token-bearer token-generic fqdn host-slug json-escape; do
 		case "$TAGS_SEEN" in
 		*" $want "*) ;;
 		*)
@@ -593,6 +566,7 @@ tool 1.27.3, schema v0.1.0, file config.yaml and document.json
 "apiVersion": "vigil.summary/v0", "x": "simplex.probe/v0"
 listen: localhost:10082
 {"hostname": "x", "ghost": "y", "localhost": "z", "hosts": ["castle"]}
+{"s": "caf\u00e9 \u0001 \u007f \u0000 \n \t"}
 EOF
 	scan_dir "$tmp/clean" >"$tmp/clean.out"
 	if [ "$FINDINGS" -ne 0 ] || [ "$INTERNAL" -ne 0 ]; then
@@ -695,6 +669,22 @@ EOF
 		tracked_rc "$tmp/trk/n$i"
 		[ "$?" -eq 1 ] || { echo "selftest FAIL: an address in a tracked file with an odd name ($i) was not a finding"; fail=1; }
 	done
+	git init -q "$tmp/trk/up" || return 2
+	mkdir "$tmp/trk/up/docs"
+	printf 'ssh %s\n' "$tsn" >"$tmp/trk/up/docs/runbook.md"
+	git -C "$tmp/trk/up" add -A
+	tracked_rc "$tmp/trk/up"
+	[ "$?" -eq 1 ] || { echo "selftest FAIL: an upper-case tailnet name in a tracked file was not a finding"; fail=1; }
+	i=0
+	for want in "$cg.txt" "internal/$ten.go" "docs/$tsn.md" "testdata/case/prom.corp.de.json" "docs/$ten"; do
+		i=$((i + 1))
+		git init -q "$tmp/trk/nm$i" || return 2
+		mkdir -p "$tmp/trk/nm$i/docs" "$tmp/trk/nm$i/internal" "$tmp/trk/nm$i/testdata/case"
+		printf 'clean\n' >"$tmp/trk/nm$i/$want"
+		git -C "$tmp/trk/nm$i" add -A
+		tracked_rc "$tmp/trk/nm$i"
+		[ "$?" -eq 1 ] || { echo "selftest FAIL: an address or hostname in a tracked file name ($i) was not a finding"; fail=1; }
+	done
 	git init -q "$tmp/trk/ov" || return 2
 	: >"$tmp/trk/ov/prod-caf$(printf '\303\251').overlay.yaml"
 	git -C "$tmp/trk/ov" add -A
@@ -724,6 +714,9 @@ EOF
 {"domain": ".prom.corp.de"}
 {"domain": ".prom.corp.com"}
 {"domain": ".prom.lab.de"}
+{"ho\u0073t": "somemachine"}
+{"\u0068ost": "castle"}
+{"a": "\u0031"}
 host: 'somemachine'
 {"Host": "somemachine"}
 HOST: somemachine
@@ -755,34 +748,39 @@ EOF
 	dir_rc "$tmp/lnk"
 	[ "$?" -eq 1 ] || { echo "selftest FAIL: a symlink in a scanned directory was not a finding"; fail=1; }
 
-	# 9. Fail closed at a low descriptor limit. A planted address must never
-	# scan clean, whatever the limit is: a finding (1) or an internal error
-	# (2) passes; a clean exit (0) or a run that has to be killed (124)
-	# fails. Run through the real entry points, tree and --scan-dir.
+	# 9. The descriptor floor. Below FD_FLOOR the scan refuses to run (exit
+	# 2) on every entry point; at or above it the clean tree scans clean and
+	# a planted address is a finding.
 	mkdir "$tmp/ul"
-	printf 'x = "%s"\n' "$cg" >"$tmp/ul/p.go"
+	printf 'x = "1"\n' >"$tmp/ul/p.txt"
 	git init -q "$tmp/ulrepo" || return 2
 	mkdir "$tmp/ulrepo/testdata"
 	cp -R testdata/scrub "$tmp/ulrepo/testdata/scrub"
 	printf 'x = "%s"\n' "$cg" >"$tmp/ulrepo/p.go"
 	git -C "$tmp/ulrepo" add -A
-	n=4
-	while [ "$n" -le 40 ]; do
-		rc=$(low_fd_rc "$n" --scan-dir "$tmp/ul")
-		if [ "$rc" = 0 ] || [ "$rc" = 124 ]; then
-			echo "selftest FAIL: --scan-dir read a planted address as clean, or spun, at ulimit -n $n (exit $rc)"
-			fail=1
-		fi
-		rc=$(low_fd_rc "$n" tree "$tmp/ulrepo")
-		if [ "$rc" = 0 ] || [ "$rc" = 124 ]; then
-			echo "selftest FAIL: a tree scan read a planted address as clean, or spun, at ulimit -n $n (exit $rc)"
-			fail=1
-		fi
-		n=$((n + 1))
+	for n in 4 12 40 63; do
+		rc=$(rc_at "$n" tree)
+		[ "$rc" = 2 ] || { echo "selftest FAIL: tree scan at ulimit -n $n exited $rc, want 2"; fail=1; }
+		rc=$(rc_at "$n" --scan-dir "$tmp/ul")
+		[ "$rc" = 2 ] || { echo "selftest FAIL: --scan-dir at ulimit -n $n exited $rc, want 2"; fail=1; }
+	done
+	for n in 64 100; do
+		rc=$(rc_at "$n" tree)
+		case "$rc" in
+		99) ;;
+		0) ;;
+		*) echo "selftest FAIL: clean tree at ulimit -n $n exited $rc, want 0"; fail=1 ;;
+		esac
+		rc=$( (export SCRUB_ROOT="$tmp/ulrepo"; rc_at "$n" tree) )
+		case "$rc" in
+		99) ;;
+		1) ;;
+		*) echo "selftest FAIL: planted address at ulimit -n $n exited $rc, want 1"; fail=1 ;;
+		esac
 	done
 
 	if [ "$fail" -eq 0 ]; then
-		echo "selftest ok: every rule fires on planted input, clean control passes, odd paths and links are findings, low descriptor limits never read as clean"
+		echo "selftest ok: every rule fires on planted input, clean control passes, odd paths and links are findings, the descriptor floor holds"
 		return 0
 	fi
 	return 1
@@ -806,7 +804,6 @@ cd "${SCRUB_ROOT:-$SELF_DIR/..}" || exit 2
 
 case "$cmd" in
 tree)
-	canary
 	scan_tracked
 	check_overlay .
 	check_planted_pins testdata/scrub
@@ -817,7 +814,6 @@ tree)
 		echo "usage: scrub.sh --scan-dir DIR" >&2
 		exit 2
 	}
-	canary
 	scan_dir "$2"
 	finish
 	;;
