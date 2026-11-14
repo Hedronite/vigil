@@ -22,7 +22,7 @@
 #
 # Coverage limits: the machine-name rule checks the values of "host",
 # "instance" and "id" keys (any case, bare, single- or double-quoted) against
-# the public slugs, the product ids, 32-digit hex ids and a short list of
+# the host aliases, the product ids, 32-digit hex ids and a short list of
 # placeholders; an empty, list or block value is a finding. The hostname
 # rule treats any dotted name in a fixture as a hostname, after blanking
 # the exact schema URL values, "$id" values under the two Hedronite repos,
@@ -68,7 +68,7 @@ fi
 SELF_DIR=$(cd "$(dirname "$0")" && pwd) || exit 2
 SELF=$SELF_DIR/$(basename "$0")
 
-SLUGS="castle tower citadel apiary lathe box unmapped"
+SLUGS="core spoke depot annex lab edge unmapped"
 # Ids that are not machines: the authorities, sources and backends.
 IDS_OK="simplex augur cubit scry grafana prom"
 # Placeholder values, exact and case-sensitive.
@@ -253,7 +253,7 @@ scan_file() {
 	if [ "$fixture" = 1 ]; then scan_host_keys "$f" "$shown"; fi
 }
 
-# A host, instance or id value is a public slug (any case), a product id, a
+# A host, instance or id value is a host alias (any case), a product id, a
 # 32-digit hex id, or one of the exact placeholders.
 host_value_ok() {
 	local v=$1 w ok=1 re='^[0-9a-f]{32}$'
@@ -291,7 +291,7 @@ scan_host_keys() { # path displaypath
 		if [ -z "$v" ]; then
 			report "$2" "$ln" host-slug "host or id key has an empty, list or block value"
 		elif ! host_value_ok "$v"; then
-			report "$2" "$ln" host-slug "host or id value is not a public slug or known id"
+			report "$2" "$ln" host-slug "host or id value is not a host alias or known id"
 		fi
 	done
 }
@@ -494,7 +494,7 @@ selftest() {
 	cg="100.64.$((6 + 6)).34"
 	ten="1$((0 * 7))"
 	ten="$ten.1.2.3"
-	tsn="box.TS.N""ET"
+	tsn="edge.TS.N""ET"
 
 	# 1. The planted files must fail, and every file rule must fire on them.
 	if [ ! -d testdata/scrub ]; then
@@ -554,17 +554,17 @@ example.invalid host.example.invalid
 "$schema": "https://json-schema.org/draft/2020-12/schema"
 "$id": "https://github.com/Hedronite/vigil/schema/vigil.summary.v0.schema.json"
   "$id":   "https://github.com/Hedronite/simplex/schema/simplex.probe.v0.schema.json"
-host: castle
-Host: Castle
-HOST: 'tower'
-"host": "box"
-'host': 'box'
-"instance": "lathe"
+host: core
+Host: Core
+HOST: 'spoke'
+"host": "edge"
+'host': 'edge'
+"instance": "lab"
 "id": "simplex"
 "id": "00000000000000000000000000000000"
 "id": "XYZ"
-- id: apiary
-{"Id": "citadel", "host": "box"}
+- id: annex
+{"Id": "depot", "host": "edge"}
 "kind": "deploy.start", "source": "ci.build"
 "generated_at": "2026-11-13T18:00:00.123456Z"
 tool 1.27.3, schema v0.1.0, file config.yaml and document.json
@@ -579,7 +579,7 @@ apiVersion: 'vigil.overlay/v0'
 {"value": "1.5e-3"} {"value": "-0.5"} {"value": "+1E10"} {"value": "42"}
 {"value": "Inf"} {"value": "+Inf"} {"value": "-Inf"} {"value": "NaN"}
 listen: localhost:10082
-{"hostname": "x", "ghost": "y", "localhost": "z", "hosts": ["castle"]}
+{"hostname": "x", "ghost": "y", "localhost": "z", "hosts": ["core"]}
 {"s": "caf\u00e9 \u0001 \u007f \u0000 \n \t"}
 s: "\x00 \x01 \x1f \x7f \x80 \xff \U00000001 \U0000007f \U0001F600 \U000000e9 \u00e9"
 EOF
@@ -598,7 +598,7 @@ EOF
 	mkdir "$tmp/big"
 	i=0
 	while [ "$i" -lt 600 ]; do
-		printf 'host: castle\n{"id": "box"}\n' >"$tmp/big/f$i.json"
+		printf 'host: core\n{"id": "edge"}\n' >"$tmp/big/f$i.json"
 		i=$((i + 1))
 	done
 	scan_dir "$tmp/big" >"$tmp/big.out" 2>"$tmp/big.err"
@@ -730,7 +730,7 @@ EOF
 {"domain": ".prom.corp.com"}
 {"domain": ".prom.lab.de"}
 {"ho\u0073t": "somemachine"}
-{"\u0068ost": "castle"}
+{"\u0068ost": "core"}
 {"a": "\u0031"}
 url: "prom\x2ecorp\x2ede"
 "\x68ost": somemachine
