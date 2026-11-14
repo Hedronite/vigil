@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Hedronite/vigil/schema/vigil.error.v0.schema.json",
+  "title": "vigil.error/v0",
+  "description": "Every non-200 response body from the listener. Missing and wrong tokens produce byte-identical bodies, and no reason detail is ever echoed.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "error"],
+  "properties": {
+    "apiVersion": { "const": "vigil.error/v0" },
+    "error": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code"],
+      "properties": {
+        "code": {
+          "description": "Stable machine code, e.g. unauthorized, not_found, method_not_allowed, payload_too_large, query_warnings, series_cap, backend_unreachable.",
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,47}$"
+        },
+        "message": {
+          "description": "Optional human text. Never contains a token, a URL or a reason the caller could use to distinguish missing from wrong credentials.",
+          "type": "string",
+          "maxLength": 512,
+          "pattern": "^[^\\x00-\\x1f\\x7f]*$"
+        }
+      }
+    }
+  }
+}
