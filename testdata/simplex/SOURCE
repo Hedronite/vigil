@@ -1,0 +1,9 @@
+repo: Hedronite/simplex
+commit: 503268433bdb716cc79a0a62a955c1136a1502ce
+phase: S1 exit (simplex check --json writes a conformant document to a file)
+vendored:
+  - schema/simplex.probe.v0.schema.json
+  - testdata/simplex/<case>/document.json
+  - testdata/simplex/<case>/exit
+excluded: Simplex configs and overlays (config.yaml, private.yaml)
+note: byte-for-byte copies. config-error (exit 3) and io-error (exit 4) ship no document, which is "no file written" and reaches Vigil as unavailable.

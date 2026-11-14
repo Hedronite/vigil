@@ -1,0 +1,7 @@
+{
+  "apiVersion": "vigil.error/v0",
+  "error": {
+    "code": "series_cap",
+    "message": "too many series"
+  }
+}
