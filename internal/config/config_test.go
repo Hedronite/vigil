@@ -228,6 +228,18 @@ authorities:
 			want: exitcode.Startup,
 		},
 		{
+			// A zero-padded address is malformed rather than unspecified: it
+			// never names an interface, so it is a typo to refuse at 3.
+			name: "zero-padded wildcard",
+			body: `apiVersion: vigil.config/v0
+listen: "00.00.00.00:10082"
+authorities:
+  - id: simplex
+    path_ref: env:VIGIL_SIMPLEX_PATH
+`,
+			want: exitcode.Usage,
+		},
+		{
 			name: "port zero",
 			body: `apiVersion: vigil.config/v0
 listen: "127.0.0.1:0"
