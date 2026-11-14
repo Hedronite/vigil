@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/Hedronite/vigil/internal/config"
-	"github.com/Hedronite/vigil/internal/exitcode"
 	"github.com/Hedronite/vigil/internal/reasons"
 	"github.com/Hedronite/vigil/internal/sources"
 	"github.com/santhosh-tekuri/jsonschema/v6"
@@ -128,14 +127,17 @@ func TestSourcesRows(t *testing.T) {
 		}
 	})
 
-	t.Run("no backends", func(t *testing.T) {
+	t.Run("no backends is an empty table", func(t *testing.T) {
 		cfg, ov := cfgFor("http://unused.invalid", "http://unused.invalid")
 		cfg.Backends = nil
-		_, err := sources.Sources(context.Background(), cfg, ov, fixedNow)
-		ee, ok := exitcode.As(err)
-		if !ok || ee.Exit != exitcode.Usage {
-			t.Fatalf("got %v", err)
+		doc, err := sources.Sources(context.Background(), cfg, ov, fixedNow)
+		if err != nil {
+			t.Fatalf("sources: %v", err)
 		}
+		if len(doc.Sources) != 0 {
+			t.Fatalf("rows = %+v", doc.Sources)
+		}
+		validate(t, doc)
 	})
 }
 

@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/Hedronite/vigil/internal/config"
-	"github.com/Hedronite/vigil/internal/exitcode"
 	"github.com/Hedronite/vigil/internal/grafana"
 	"github.com/Hedronite/vigil/internal/httpx"
 	"github.com/Hedronite/vigil/internal/reasons"
@@ -43,9 +42,6 @@ type Doc struct {
 // being down is a row state, not a command failure: the command exits 0 with
 // the row saying unavailable.
 func Sources(ctx context.Context, cfg *config.Config, ov *config.Overlay, now time.Time) (*Doc, error) {
-	if len(cfg.Backends) == 0 {
-		return nil, exitcode.Newf(exitcode.Usage, "no_backend", "no backend is configured")
-	}
 	at := stamp(now)
 	doc := &Doc{
 		APIVersion:  Version,
