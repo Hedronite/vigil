@@ -1,0 +1,27 @@
+apiVersion: vigil.config/v0
+listen: 127.0.0.1:10082
+backends:
+  - id: prom
+    kind: prom
+  - id: grafana
+    kind: grafana
+authorities:
+  - id: simplex
+    path_ref: /var/lib/vigil/simplex.json
+    stale_after: 120s
+  - id: augur
+    path_ref: /var/lib/vigil/augur.json
+sources:
+  - id: scry
+    path_ref: env:VIGIL_SCRY_PATH
+queries:
+  - name: up_by_host
+    backend: prom
+    expr: 'up{job="node"}'
+    timeout: 5s
+    max_series: 200
+freshness:
+  stale_after: 120s
+tokens:
+  read_file: env:VIGIL_READ_TOKEN_FILE
+  signal_file: /etc/vigil/signal.token

@@ -1,0 +1,45 @@
+{
+  "apiVersion": "vigil.summary/v0",
+  "generated_at": "2026-11-13T18:00:00Z",
+  "overall": "RED",
+  "verdicts": [
+    {
+      "source": "simplex",
+      "state": "ok",
+      "severity": "RED",
+      "reasons": [],
+      "observed_at": "2026-11-13T18:00:00Z"
+    }
+  ],
+  "vantage": {
+    "id": "lathe",
+    "status": "blind"
+  },
+  "hosts": [
+    {
+      "id": "box",
+      "severity": "RED",
+      "reasons": [
+        "vantage_blind"
+      ],
+      "source": "simplex"
+    },
+    {
+      "id": "lathe",
+      "severity": "RED",
+      "reasons": [
+        "vantage_blind"
+      ],
+      "source": "simplex"
+    }
+  ],
+  "sources": [
+    {
+      "id": "simplex",
+      "kind": "simplex",
+      "state": "ok",
+      "observed_at": "2026-11-13T18:00:00Z",
+      "last_ok": "2026-11-13T18:00:00Z"
+    }
+  ]
+}

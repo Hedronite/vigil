@@ -1,0 +1,41 @@
+{
+  "apiVersion": "vigil.summary/v0",
+  "generated_at": "2026-11-13T18:00:00Z",
+  "overall": "YELLOW",
+  "verdicts": [
+    {
+      "source": "simplex",
+      "state": "unavailable",
+      "severity": null,
+      "reasons": [
+        "authority_unavailable"
+      ],
+      "observed_at": null
+    },
+    {
+      "source": "augur",
+      "state": "ok",
+      "severity": "GREEN",
+      "reasons": [],
+      "observed_at": "2026-11-13T18:00:00Z"
+    }
+  ],
+  "hosts": [],
+  "sources": [
+    {
+      "id": "simplex",
+      "kind": "simplex",
+      "state": "unavailable",
+      "observed_at": null,
+      "last_ok": null,
+      "detail_code": "schema_major"
+    },
+    {
+      "id": "augur",
+      "kind": "augur",
+      "state": "ok",
+      "observed_at": "2026-11-13T18:00:00Z",
+      "last_ok": "2026-11-13T18:00:00Z"
+    }
+  ]
+}

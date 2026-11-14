@@ -1,0 +1,10 @@
+{
+  "apiVersion": "vigil.signal/v0",
+  "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "source": "deploy",
+  "kind": "deploy.start",
+  "severity": "notice",
+  "created_at": "2026-11-13T18:00:00Z",
+  "ttl": 300,
+  "note": "rolling out"
+}
