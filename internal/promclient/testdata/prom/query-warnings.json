@@ -1,0 +1,21 @@
+{
+  "status": "success",
+  "warnings": [
+    "results truncated due to limit"
+  ],
+  "data": {
+    "resultType": "vector",
+    "result": [
+      {
+        "metric": {
+          "instance": "tower",
+          "job": "node"
+        },
+        "value": [
+          1763107200,
+          "1"
+        ]
+      }
+    ]
+  }
+}
