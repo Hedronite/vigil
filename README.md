@@ -28,11 +28,12 @@ prom (lathe) · grafana (lathe) ──named──▶          Cubit / Scry ─�
 The document is a single JSON object with an `apiVersion`. Consumers refuse an
 unknown major version; fields are additive within `v0`.
 
-- `overall` is the worst severity across available verdicts, after two caps
-  Vigil owns: a stale verdict contributes at least YELLOW, and a missing
-  authority caps `overall` at no better than YELLOW (`authority_unavailable`).
-  If no authority could be read at all, `overall` is null and a reader must
-  render it as unavailable — null is never GREEN.
+- `overall` is the worst severity among the readable verdicts in
+  `verdicts[]`, after two caps and nothing else. Stale cap: a stale verdict
+  counts as at least YELLOW. Missing-authority cap: while any configured
+  authority is unavailable, `overall` is at least YELLOW. If no authority is
+  readable, `overall` is null. A reader renders null as unavailable — null is
+  never GREEN.
 - `verdicts[]` says which authority said what: one entry per configured
   authority with its own `state` (`ok`, `stale`, `unavailable`), the severity
   as published, the reasons — Vigil's own codes (`source_stale`,
@@ -48,9 +49,9 @@ unknown major version; fields are additive within `v0`.
   (`overall` RED, exit 2), not an unavailable source.
 - `hosts[]` is the per-host matrix, carried from Simplex only. A clean host
   may carry an empty `reasons[]`.
-- `sources[]` is where status lives and the only place it lives: backends and
-  informational sources each carry `state`, `observed_at`, `last_ok` and a
-  machine `detail_code`.
+- `sources[]` is where status lives and the only place it lives: authorities,
+  backends and informational sources each carry `state`, `observed_at`,
+  `last_ok` and a machine `detail_code`.
 - `augur{}`, `cubit{}` and `scry{}` blocks are data only. They never colour
   `overall` and never move the Facet chip.
 
@@ -68,7 +69,7 @@ Two presentation rules hold everywhere (CLI table, Facet, agents):
 | `vigil prom targets` | V1 | scrape targets of the named prom backend: slug, health, last scrape only |
 | `vigil prom query <name>` | V1 | run a named query from config; host slug is the only variable |
 | `vigil grafana health` | V1 | health of the named grafana backend; never gates `overall` |
-| `vigil sources` | V1 | configured backends and their reachability |
+| `vigil sources` | V1 | configured authorities, backends and informational sources with their reachability |
 | `vigil simplex summary` | V2 | build `vigil.summary/v0`; human table, or the document alone with `--json` |
 | `vigil serve` | V3 | loopback HTTP listener for the same document |
 
@@ -115,9 +116,9 @@ environment reference. Backend addresses live in an overlay
 (`example.overlay.yaml` is the tracked example; a real overlay is never
 committed). Both examples validate against the JSON Schemas under `schema/`.
 
-A config with exactly one authority must produce `overall` byte-equal to that
-authority's own verdict; adding an authority never lowers `overall`. That is
-the whole contract — Vigil adds no second opinion of its own.
+With one authority and no cap in play, `overall` is that authority's
+published severity; a stale GREEN gives YELLOW. Adding a configured
+authority can keep `overall` or make it worse, never better.
 
 ## Documents
 

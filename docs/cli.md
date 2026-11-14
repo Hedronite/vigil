@@ -31,7 +31,7 @@ Prints the binary version, the commit and the Go runtime. Available now.
 
 ```
 $ vigil version
-vigil v0-dev (commit 8b90176cc6dc, go1.27.3)
+vigil v0-dev (commit 1a2b3c4d5e6f, go1.27.3)
 ```
 
 ## vigil prom targets (V1)
@@ -76,8 +76,9 @@ chip, not the exit code of a summary.
 
 ## vigil sources (V1)
 
-Lists the configured backends and authorities with their reachability and the
-last time each was read. Same columns as the `sources[]` table below.
+Lists the configured authorities, backends and informational sources with
+their reachability and the last time each was read. Same columns as the
+`sources[]` table above.
 
 ## vigil simplex summary (V2)
 
@@ -94,7 +95,6 @@ Table columns, in order:
 | verdicts | `SOURCE`, `STATE`, `SEVERITY`, `AGE`, `REASONS` |
 | hosts | `HOST`, `SEVERITY`, `REASONS` |
 | sources | `SOURCE`, `KIND`, `STATE`, `AGE`, `DETAIL` |
-| signals | `KIND`, `SEVERITY`, `AGE`, `NOTE` |
 
 Reading the table:
 
@@ -107,14 +107,18 @@ Reading the table:
   ever shows the last GREEN as current.
 - `SEVERITY` in the verdicts table is the severity as published by the
   authority; `overall` carries the capped combination. When they differ, the
-  age column and the `REASONS` column (`source_stale`,
-  `authority_unavailable`, `schema_major`, `clock_skew`,
-  `source_unavailable`) say why.
+  age column and the `REASONS` column say why: verdict reasons are Vigil's
+  own codes, such as `authority_unavailable` (the authority could not be
+  read) and `source_stale` (the document is older than the freshness bound).
+  The cause of an unreadable source — `schema_major`, `source_unavailable` —
+  shows in that source's `DETAIL` cell, as its `detail_code`.
 - `hosts[]` comes from Simplex alone; a clean host may have an empty reasons
   cell.
-- Signals render as informational lines only. Their severity vocabulary is
-  `info` and `notice` — deliberately not GREEN/YELLOW/RED — and they never
-  touch `overall`, the chip or the exit code.
+- Signals do not appear here: the summary has no signals field by contract.
+  They are read only from `GET /v0/signals` (see `vigil serve`), where their
+  severity vocabulary is `info` and `notice` — deliberately not
+  GREEN/YELLOW/RED — and they never touch `overall`, the chip or the exit
+  code.
 
 ## vigil serve (V3)
 
@@ -146,6 +150,11 @@ address whether it came from the config or a flag. A non-loopback bind needs
 `--allow-nonloopback` plus one explicit address in the config or on the
 command line. A bracketed IPv6 value must be quoted in YAML:
 `listen: "[::1]:10082"`.
+
+The remaining limits — the signal body cap and per-remote rate, the response
+size cap, the per-backend concurrency, and the no-redirect rule — are stated
+once in [docs/semantics.md](docs/semantics.md); this doc does not restate
+them.
 
 ## Configuration
 
