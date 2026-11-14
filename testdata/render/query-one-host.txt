@@ -1,0 +1,8 @@
+BACKEND       prom
+VANTAGE       lathe
+NAME          up_by_host
+HOST          castle
+EVALUATED_AT  2026-11-14T09:00:00Z
+
+HOST    JOB   VALUE
+castle  node  1
