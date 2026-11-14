@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -92,16 +93,25 @@ queries:
     expr: up
 `
 
-// writeDocs writes a config and an overlay that points at address.
+// backendSeq gives every test its own backend id. The bounded client is
+// shared per backend id for the life of the process and the first
+// configuration wins, so two tests that reused one id would talk to the first
+// test's server.
+var backendSeq atomic.Int32
+
+// writeDocs writes a config and an overlay that points at address, under a
+// backend id no other test uses.
 func writeDocs(t *testing.T, cfgBody, address string) (cfg, ov string) {
 	t.Helper()
+	id := fmt.Sprintf("prom%d", backendSeq.Add(1))
+	cfgBody = strings.NewReplacer("id: prom\n", "id: "+id+"\n", "backend: prom\n", "backend: "+id+"\n").Replace(cfgBody)
 	dir := t.TempDir()
 	cfg = filepath.Join(dir, "config.yaml")
 	ov = filepath.Join(dir, "overlay.yaml")
 	if err := os.WriteFile(cfg, []byte(cfgBody), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	overlay := fmt.Sprintf("apiVersion: vigil.overlay/v0\nbackends:\n  - id: prom\n    address: %s\n", address)
+	overlay := fmt.Sprintf("apiVersion: vigil.overlay/v0\nbackends:\n  - id: %s\n    address: %s\n", id, address)
 	if err := os.WriteFile(ov, []byte(overlay), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -137,7 +147,7 @@ func TestPromTargetsJSON(t *testing.T) {
 			t.Errorf("stdout leaks %q:\n%s", leak, out)
 		}
 	}
-	if !strings.Contains(out, `"vantage":"lathe"`) || !strings.Contains(out, `"backend":"prom"`) {
+	if !strings.Contains(out, `"vantage":"lathe"`) || !strings.Contains(out, `"backend":"prom`) {
 		t.Errorf("document lacks backend or vantage: %s", out)
 	}
 	// The same inputs print the same bytes.
@@ -150,11 +160,13 @@ func TestPromTargetsJSON(t *testing.T) {
 func TestPromTargetsTable(t *testing.T) {
 	srv, _ := promServer(t)
 	cfg, ov := writeDocs(t, wireConfig, srv.URL)
-	code, out, errs := live(t, "prom", "targets", "--config", cfg, "--overlay", ov)
+	code, out, errs := live(t, "prom", "targets", "--config", cfg, "--overlay", ov, "--now", "2026-11-14T09:00:00Z")
 	if code != 0 || errs != "" {
 		t.Fatalf("exit=%d stderr=%q", code, errs)
 	}
-	for _, want := range []string{"HOST", "JOB", "HEALTH", "LAST SCRAPE", "vantage lathe"} {
+	// The table is internal/render's, called as it is: header block, a blank
+	// line, then the rows.
+	for _, want := range []string{"BACKEND", "VANTAGE", "lathe", "GENERATED_AT  2026-11-14T09:00:00Z", "TARGET", "JOB", "HEALTH", "LAST_SCRAPE"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("table lacks %q:\n%s", want, out)
 		}

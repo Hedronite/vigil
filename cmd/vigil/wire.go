@@ -2,17 +2,14 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"fmt"
-	"io"
 	"regexp"
-	"text/tabwriter"
 	"time"
 
 	"github.com/Hedronite/vigil/internal/config"
 	"github.com/Hedronite/vigil/internal/exitcode"
 	"github.com/Hedronite/vigil/internal/promclient"
+	"github.com/Hedronite/vigil/internal/render"
 )
 
 // liveHandlers is the table the binary runs. Each backend command is a thin
@@ -104,48 +101,19 @@ func configFailure(kind string, err error) error {
 	return exitcode.Newf(exitcode.Usage, kind+"_invalid", msg)
 }
 
-// Output. The document is the contract; a table is a view of it. These two
-// printers are the seam where internal/render takes over.
-
-func printJSON(w io.Writer, doc any) error {
-	b, err := json.Marshal(doc)
-	if err != nil {
-		return err
-	}
-	_, err = w.Write(append(b, '\n'))
-	return err
-}
+// Output. The document is the contract; internal/render prints it, as JSON
+// alone or as a table, and nothing here re-formats either.
 
 func printTargets(inv Invocation, doc *promclient.TargetsDoc) error {
 	if inv.JSON {
-		return printJSON(inv.Stdout, doc)
+		return render.JSON(inv.Stdout, doc)
 	}
-	_, _ = fmt.Fprintf(inv.Stdout, "backend %s  vantage %s\n\n", doc.Backend, doc.Vantage)
-	tw := tabwriter.NewWriter(inv.Stdout, 0, 4, 2, ' ', 0)
-	_, _ = fmt.Fprintln(tw, "HOST\tJOB\tHEALTH\tLAST SCRAPE")
-	for _, t := range doc.Targets {
-		last := "-"
-		if t.LastScrape != nil {
-			last = *t.LastScrape
-		}
-		_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\n", t.Host, t.Job, t.Health, last)
-	}
-	return tw.Flush()
+	return render.Targets(inv.Stdout, doc)
 }
 
 func printQuery(inv Invocation, doc *promclient.QueryDoc) error {
 	if inv.JSON {
-		return printJSON(inv.Stdout, doc)
+		return render.JSON(inv.Stdout, doc)
 	}
-	_, _ = fmt.Fprintf(inv.Stdout, "backend %s  vantage %s  query %s\n\n", doc.Backend, doc.Vantage, doc.Name)
-	tw := tabwriter.NewWriter(inv.Stdout, 0, 4, 2, ' ', 0)
-	_, _ = fmt.Fprintln(tw, "HOST\tJOB\tVALUE")
-	for _, s := range doc.Series {
-		job := s.Job
-		if job == "" {
-			job = "-"
-		}
-		_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\n", s.Host, job, s.Value)
-	}
-	return tw.Flush()
+	return render.Query(inv.Stdout, doc)
 }
