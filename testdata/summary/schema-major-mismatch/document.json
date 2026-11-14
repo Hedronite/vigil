@@ -20,10 +20,6 @@
       "observed_at": "2026-11-13T18:00:00Z"
     }
   ],
-  "vantage": {
-    "id": "lathe",
-    "status": "unchecked"
-  },
   "hosts": [],
   "sources": [
     {
