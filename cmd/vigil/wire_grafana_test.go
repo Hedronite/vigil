@@ -44,6 +44,17 @@ func writeBackends(t *testing.T, cfgBody string, addrs map[string]string) (cfg, 
 		cfgBody = strings.ReplaceAll(cfgBody, "id: "+base+"\n", "id: "+id+"\n")
 		fmt.Fprintf(&overlay, "  - id: %s\n    address: %s\n", id, addr)
 	}
+	// A fixed id that equals a generated one would read as a duplicate and fail
+	// as config_invalid, far from its cause. Say so here instead.
+	seen := map[string]bool{}
+	for _, line := range strings.Split(cfgBody, "\n") {
+		if id, ok := strings.CutPrefix(strings.TrimSpace(line), "- id: "); ok {
+			if seen[id] {
+				t.Fatalf("writeBackends: the id %q appears twice in the test config; a fixed id collides with a generated one", id)
+			}
+			seen[id] = true
+		}
+	}
 	dir := t.TempDir()
 	cfg, ov = filepath.Join(dir, "config.yaml"), filepath.Join(dir, "overlay.yaml")
 	if err := os.WriteFile(cfg, []byte(cfgBody), 0o600); err != nil {
@@ -187,7 +198,10 @@ func TestGrafanaHealthBackendSelection(t *testing.T) {
 	if got := oneErrorLine(t, "no backend", errs); got != "no_backend" {
 		t.Errorf("code = %q", got)
 	}
-	two := strings.Replace(grafanaConfig, "authorities:", "  - id: grafana2\n    kind: grafana\nauthorities:", 1)
+	// The extra backend's id carries a hyphen. writeBackends renames "grafana" to
+	// grafana<N> from a package-wide counter, so a fixed id of the form
+	// grafana<digits> collides with it the run that N reaches that digit.
+	two := strings.Replace(grafanaConfig, "authorities:", "  - id: grafana-extra\n    kind: grafana\nauthorities:", 1)
 	c, o = writeBackends(t, two, map[string]string{"grafana": g.URL})
 	code, out, errs = live(t, "grafana", "health", "--config", c, "--overlay", o)
 	if code != exitcode.Usage || out != "" {
