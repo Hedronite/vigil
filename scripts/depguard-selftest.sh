@@ -10,8 +10,12 @@
 #   jsonschema in a non-test file           -> depguard finding
 #   jsonschema in a _test.go file           -> no depguard finding
 #   os/exec in a _test.go file              -> no depguard finding
+#   net/http in a non-test file             -> depguard finding
+#   net/http/httputil in a non-test file   -> depguard finding (subpackages too)
+#   net/http in internal/httpx (non-test)   -> no depguard finding
+#   net/http in a _test.go file             -> no depguard finding
 #
-# Exit: 0 all four behave, 1 a rule is wrong, 2 setup failed.
+# Exit: 0 all eight behave, 1 a rule is wrong, 2 setup failed.
 
 set -u
 set -o pipefail
@@ -24,7 +28,7 @@ trap 'rm -rf "$tmp"' EXIT
 mkdir "$tmp/tree"
 cp go.mod .golangci.yml "$tmp/tree/" || exit 2
 [ -f go.sum ] && cp go.sum "$tmp/tree/"
-mkdir -p "$tmp/tree/internal/probe"
+mkdir -p "$tmp/tree/internal/probe" "$tmp/tree/internal/httpx"
 cd "$tmp/tree" || exit 2
 
 mod=$(awk '$1=="module"{print $2}' go.mod)
@@ -62,7 +66,7 @@ expect_clean() { # label
 		echo "depguard-selftest ok: $1 allowed"
 	fi
 }
-reset() { rm -f internal/probe/*.go; }
+reset() { rm -f internal/probe/*.go internal/httpx/*.go; }
 
 reset
 printf 'package probe\n\nimport _ "os/exec"\n' >internal/probe/probe.go
@@ -81,6 +85,23 @@ reset
 printf 'package probe\n' >internal/probe/probe.go
 printf 'package probe\n\nimport _ "os/exec"\n' >internal/probe/probe_test.go
 expect_clean "os/exec in a _test.go file"
+
+reset
+printf 'package probe\n\nimport _ "net/http"\n' >internal/probe/probe.go
+expect_hit "net/http in a non-test file outside internal/httpx"
+
+reset
+printf 'package probe\n\nimport _ "net/http/httputil"\n' >internal/probe/probe.go
+expect_hit "net/http/httputil in a non-test file outside internal/httpx"
+
+reset
+printf 'package httpx\n\nimport _ "net/http"\n' >internal/httpx/probe.go
+expect_clean "net/http in internal/httpx"
+
+reset
+printf 'package probe\n' >internal/probe/probe.go
+printf 'package probe\n\nimport _ "net/http"\n' >internal/probe/probe_test.go
+expect_clean "net/http in a _test.go file"
 
 # The real tree must be clean under the same rules.
 cd "$root" || exit 2
