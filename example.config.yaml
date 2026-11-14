@@ -14,28 +14,21 @@ apiVersion: vigil.config/v0
 listen: "127.0.0.1:10082"
 
 # Named backends. An id declared here is the only way to reach an address;
-# the address itself lives in the overlay.
+# the address itself lives in the overlay. The vantage label names the
+# Prometheus vantage this backend represents; it rides on every answer.
 backends:
   - id: prom
     kind: prom
+    vantage: lathe
   - id: grafana
     kind: grafana
 
 # Authorities publish their own verdict documents; Vigil combines them into
-# overall and derives none of the severity itself.
+# overall and derives none of the severity itself. The example names the
+# Simplex document the family already produces.
 authorities:
   - id: simplex
     path_ref: env:VIGIL_SIMPLEX_DOC
-    stale_after: 180s
-  - id: augur
-    path_ref: env:VIGIL_AUGUR_DOC
-
-# Informational documents. They never colour overall.
-sources:
-  - id: scry
-    path_ref: env:VIGIL_SCRY_DOC
-  - id: cubit
-    path_ref: env:VIGIL_CUBIT_DOC
 
 # Named queries for the prom backend. The host slug is the only template
 # variable (see the CLI doc); there is no free-form path over HTTP or on the

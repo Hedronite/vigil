@@ -22,22 +22,39 @@ import (
 
 const marker = "leakmarker"
 
+// loadSchema compiles one schema. Every schema in the directory is registered
+// under its own $id first, because some reference another (vigil.sources/v0
+// reuses the summary's source shape).
 func loadSchema(t *testing.T, file string) *jsonschema.Schema {
 	t.Helper()
-	b, err := os.ReadFile(filepath.Join("..", "..", "schema", file))
-	if err != nil {
-		t.Fatal(err)
+	dir := filepath.Join("..", "..", "schema")
+	files, err := filepath.Glob(filepath.Join(dir, "*.json"))
+	if err != nil || len(files) == 0 {
+		t.Fatalf("no schemas found: %v", err)
 	}
-	var doc any
-	if err := json.Unmarshal(b, &doc); err != nil {
-		t.Fatal(err)
-	}
-	id := doc.(map[string]any)["$id"].(string)
 	c := jsonschema.NewCompiler()
-	if err := c.AddResource(id, doc); err != nil {
-		t.Fatal(err)
+	var want string
+	for _, f := range files {
+		b, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var doc any
+		if err := json.Unmarshal(b, &doc); err != nil {
+			t.Fatal(err)
+		}
+		id := doc.(map[string]any)["$id"].(string)
+		if err := c.AddResource(id, doc); err != nil {
+			t.Fatal(err)
+		}
+		if filepath.Base(f) == file {
+			want = id
+		}
 	}
-	s, err := c.Compile(id)
+	if want == "" {
+		t.Fatalf("no schema file %s", file)
+	}
+	s, err := c.Compile(want)
 	if err != nil {
 		t.Fatal(err)
 	}
