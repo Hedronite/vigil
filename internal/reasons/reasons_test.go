@@ -47,6 +47,7 @@ func TestDetailCodes(t *testing.T) {
 	want := []string{
 		"unreachable", "timeout", "body_cap", "redirect_refused", "http_status",
 		"series_cap", "query_warnings", "query_rejected", "not_health", "no_series",
+		"missing_host", "unexpected_host",
 	}
 	if len(Detail) != len(want) {
 		t.Fatalf("Detail has %d codes, want %d", len(Detail), len(want))
