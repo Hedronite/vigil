@@ -1,0 +1,4 @@
+BACKEND      grafana
+STATE        unavailable
+DETAIL_CODE  not_health
+CHECKED_AT   2026-11-14T09:00:00Z

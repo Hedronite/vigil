@@ -1,0 +1,7 @@
+apiVersion: vigil.overlay/v0
+backends:
+  - id: prom
+    address: http://prom.example.invalid:9090
+hosts:
+  - slug: castle
+    instances: []

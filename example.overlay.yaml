@@ -12,3 +12,16 @@ backends:
     address: http://prom.example.invalid:9090
   - id: grafana
     address: http://198.51.100.10:3000
+# The hosts[] mapping turns the instance labels a backend reports into the
+# public slugs the output prints. An instance no mapping claims prints as
+# unmapped. An instance is a bare host or a host with a port, exactly as the
+# backend reports it; brackets hold an IPv6 literal.
+hosts:
+  - slug: castle
+    instances:
+      - "198.51.100.10:9100"
+      - castle.example.invalid
+  - slug: lathe
+    instances:
+      - "198.51.100.20:9100"
+      - lathe.example.invalid

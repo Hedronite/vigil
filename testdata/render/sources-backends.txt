@@ -1,0 +1,5 @@
+GENERATED_AT  2026-11-14T09:00:00Z
+
+ID       KIND     STATE        OBSERVED_AT           LAST_OK               DETAIL_CODE  VANTAGE
+prom     prom     ok           2026-11-14T09:00:00Z  2026-11-14T09:00:00Z  -            lathe
+grafana  grafana  unavailable  -                     -                     not_health   -

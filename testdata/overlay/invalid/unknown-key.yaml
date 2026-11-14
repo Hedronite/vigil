@@ -1,0 +1,5 @@
+apiVersion: vigil.overlay/v0
+vantage: lathe
+backends:
+  - id: prom
+    address: http://prom.example.invalid:9090

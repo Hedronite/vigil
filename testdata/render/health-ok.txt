@@ -1,0 +1,3 @@
+BACKEND     grafana
+STATE       ok
+CHECKED_AT  2026-11-14T09:00:00Z

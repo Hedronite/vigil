@@ -1,0 +1,22 @@
+{
+  "apiVersion": "vigil.sources/v0",
+  "generated_at": "2026-11-14T09:00:00Z",
+  "sources": [
+    {
+      "id": "prom",
+      "kind": "prom",
+      "state": "ok",
+      "observed_at": "2026-11-14T09:00:00Z",
+      "last_ok": "2026-11-14T09:00:00Z",
+      "vantage": "lathe"
+    },
+    {
+      "id": "grafana",
+      "kind": "grafana",
+      "state": "unavailable",
+      "observed_at": null,
+      "last_ok": null,
+      "detail_code": "not_health"
+    }
+  ]
+}

@@ -1,0 +1,6 @@
+{
+  "apiVersion": "vigil.health/v0",
+  "backend": "grafana",
+  "state": "GREEN",
+  "checked_at": "2026-11-14T09:00:00Z"
+}

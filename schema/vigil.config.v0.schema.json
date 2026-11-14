@@ -119,6 +119,10 @@
             "prom",
             "grafana"
           ]
+        },
+        "vantage": {
+          "$ref": "#/$defs/slug",
+          "description": "Optional label for the Prometheus vantage this backend represents."
         }
       }
     },
