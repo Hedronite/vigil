@@ -1,4 +1,4 @@
-# Vigil example configuration (vigil.config/v0).
+# Vigil example configuration.
 #
 # Strict: unknown keys are errors. Slugs only — addresses live in an overlay
 # keyed by backend id, and secrets are referenced by environment variable or

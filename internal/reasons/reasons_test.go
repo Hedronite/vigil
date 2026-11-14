@@ -42,3 +42,31 @@ func TestStates(t *testing.T) {
 		}
 	}
 }
+
+func TestDetailCodes(t *testing.T) {
+	want := []string{
+		"unreachable", "timeout", "body_cap", "redirect_refused", "http_status",
+		"series_cap", "query_warnings", "query_rejected", "not_health", "no_series",
+	}
+	if len(Detail) != len(want) {
+		t.Fatalf("Detail has %d codes, want %d", len(Detail), len(want))
+	}
+	seen := map[string]bool{}
+	for i, c := range want {
+		if Detail[i] != c {
+			t.Errorf("Detail[%d] = %q, want %q", i, Detail[i], c)
+		}
+		if !Valid(c) {
+			t.Errorf("detail code %q does not match %s", c, Pattern)
+		}
+		if seen[c] {
+			t.Errorf("detail code %q listed twice", c)
+		}
+		seen[c] = true
+	}
+	for _, o := range Own {
+		if seen[o] {
+			t.Errorf("detail code %q collides with an own reason", o)
+		}
+	}
+}

@@ -1,14 +1,16 @@
-// Command vigil is the Go ops query surface. At V0 it carries only the
-// version stub; the Prometheus, Simplex and listener commands arrive in V1 to
-// V3.
+// Command vigil is the Go ops query surface. V1 adds the backend commands:
+// prom targets, prom query, grafana health and sources. The listener and the
+// authority readers arrive in V2 and V3.
 package main
 
 import (
-	"fmt"
+	"context"
 	"io"
 	"os"
+	"os/signal"
 	"runtime"
 	"runtime/debug"
+	"syscall"
 
 	"github.com/Hedronite/vigil/internal/exitcode"
 )
@@ -20,31 +22,28 @@ var (
 )
 
 func main() {
-	os.Exit(runRecovered(os.Args[1:], os.Stdout, os.Stderr))
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	code := runRecovered(ctx, os.Args[1:], os.Stdout, os.Stderr)
+	stop()
+	os.Exit(code)
 }
 
 // runRecovered turns a panic into exit 6 so a crash never reads as a verdict.
-func runRecovered(args []string, stdout, stderr io.Writer) int {
-	return runRecoveredWith(func() int { return run(args, stdout, stderr) }, stderr)
+func runRecovered(ctx context.Context, args []string, stdout, stderr io.Writer) int {
+	return runRecoveredWith(func() int { return run(ctx, args, stdout, stderr, defaultHandlers()) }, stderr)
 }
 
+// runRecoveredWith runs f and, if it panics, prints one vigil.error/v0 line
+// with the internal code. The panic value is dropped: it could carry an
+// address.
 func runRecoveredWith(f func() int, stderr io.Writer) (code int) {
 	defer func() {
 		if r := recover(); r != nil {
-			_, _ = fmt.Fprintf(stderr, "vigil: internal error: %v\n", r)
+			writeError(stderr, exitcode.New(exitcode.Internal, "internal"))
 			code = exitcode.Internal
 		}
 	}()
 	return f()
-}
-
-func run(args []string, stdout, stderr io.Writer) int {
-	if len(args) == 1 && args[0] == "version" {
-		_, _ = fmt.Fprintln(stdout, versionLine())
-		return exitcode.Green
-	}
-	_, _ = fmt.Fprintln(stderr, "usage: vigil version")
-	return exitcode.Usage
 }
 
 func versionLine() string {
@@ -55,7 +54,7 @@ func versionLine() string {
 	if c == "" {
 		c = "unknown"
 	}
-	return fmt.Sprintf("vigil %s (commit %s, %s)", version, c, runtime.Version())
+	return "vigil " + version + " (commit " + c + ", " + runtime.Version() + ")"
 }
 
 func vcsRevision() string {

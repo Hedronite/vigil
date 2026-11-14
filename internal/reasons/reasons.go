@@ -1,6 +1,6 @@
 // Package reasons holds the vocabulary Vigil owns: its own reason codes, the
-// pass-through pattern for reasons that authorities publish, and the source
-// states.
+// V1 backend detail codes, the pass-through pattern for reasons that
+// authorities publish, and the source states.
 //
 // Authorities (Simplex, Augur) own their reason strings. Vigil passes them
 // through and checks only the shape, so an upstream addition never breaks it.
@@ -24,6 +24,48 @@ var Own = []string{
 	SchemaMajor,
 	ClockSkew,
 	AuthorityUnavailable,
+}
+
+// Backend detail codes (V1). They say why a backend call failed, in
+// sources[].detail_code and in vigil.error/v0. They are never addresses,
+// never URLs and never text copied from a backend.
+const (
+	// Unreachable: the connection failed (refused, reset, no route).
+	Unreachable = "unreachable"
+	// Timeout: the per-call deadline passed.
+	Timeout = "timeout"
+	// BodyCap: the response body was larger than the cap for the call.
+	BodyCap = "body_cap"
+	// RedirectRefused: the backend answered with a redirect, which Vigil
+	// never follows.
+	RedirectRefused = "redirect_refused"
+	// HTTPStatus: the backend answered with a non-2xx status.
+	HTTPStatus = "http_status"
+	// SeriesCap: a query matched more series than the configured cap.
+	SeriesCap = "series_cap"
+	// QueryWarnings: the backend reported a warning, so the answer could be
+	// partial.
+	QueryWarnings = "query_warnings"
+	// QueryRejected: the backend rejected a configured expression (bad_data).
+	QueryRejected = "query_rejected"
+	// NotHealth: the body was not a health document (a login page, say).
+	NotHealth = "not_health"
+	// NoSeries: a query matched no series.
+	NoSeries = "no_series"
+)
+
+// Detail lists the V1 backend detail codes.
+var Detail = []string{
+	Unreachable,
+	Timeout,
+	BodyCap,
+	RedirectRefused,
+	HTTPStatus,
+	SeriesCap,
+	QueryWarnings,
+	QueryRejected,
+	NotHealth,
+	NoSeries,
 }
 
 // Pattern is the shape every reason string must match, Vigil's own and
