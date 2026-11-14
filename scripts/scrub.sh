@@ -117,7 +117,7 @@ add_rule token-aws all -E 'AKIA[0-9A-Z]{16}' "AWS key id shape"
 add_rule token-privkey all -E '-----BEGIN [A-Z ]*PRIVATE KEY-----' "private key block"
 add_rule token-bearer all -E '[Bb]earer[[:space:]]+[A-Za-z0-9._~+/-]{24,}' "bearer credential"
 add_rule token-generic all -Ei '(token|secret|passw(or)?d|api[_-]?key)["'"'"']?[[:space:]]*[:=][[:space:]]*["'"'"']?[A-Za-z0-9+_-]{32,}' "credential assignment"
-add_rule json-escape fixture -E '\\u00([2-6][0-9A-Fa-f]|7[0-9A-Ea-e])' "JSON escape of a printable ASCII character"
+add_rule json-escape fixture -E '\\(u00|x|U000000)([2-6][0-9A-Fa-f]|7[0-9A-Ea-e])' "escape of a printable ASCII character (\\u, \\x or \\U)"
 add_rule fqdn fixture -Ei '(^|[^A-Za-z0-9-])[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?(\.[A-Za-z0-9-]+)*\.(com|net|org|io|dev|app|ai|co|me|xyz|cloud|local|lan|internal|corp|home|arpa)([^A-Za-z0-9-]|$)' "hostname in fixture or example"
 
 FINDINGS=0
@@ -567,6 +567,7 @@ tool 1.27.3, schema v0.1.0, file config.yaml and document.json
 listen: localhost:10082
 {"hostname": "x", "ghost": "y", "localhost": "z", "hosts": ["castle"]}
 {"s": "caf\u00e9 \u0001 \u007f \u0000 \n \t"}
+s: "\x00 \x01 \x1f \x7f \x80 \xff \U00000001 \U0000007f \U0001F600 \U000000e9 \u00e9"
 EOF
 	scan_dir "$tmp/clean" >"$tmp/clean.out"
 	if [ "$FINDINGS" -ne 0 ] || [ "$INTERNAL" -ne 0 ]; then
@@ -717,6 +718,10 @@ EOF
 {"ho\u0073t": "somemachine"}
 {"\u0068ost": "castle"}
 {"a": "\u0031"}
+url: "prom\x2ecorp\x2ede"
+"\x68ost": somemachine
+"\U00000068ost": somemachine
+{"a": "\U00000031"}
 host: 'somemachine'
 {"Host": "somemachine"}
 HOST: somemachine
