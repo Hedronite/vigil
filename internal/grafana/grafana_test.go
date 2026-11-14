@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -55,15 +57,28 @@ func serve(t *testing.T, status int, body string) *httptest.Server {
 	return srv
 }
 
-func fixtureConfig(base string) (*config.Config, *config.Overlay) {
+// backendID is unique per test. The client registry is process-wide and keeps
+// the first configuration for an id, so two tests that share an id would share
+// a client pointed at the first test's server.
+func backendID(t *testing.T, suffix string) string {
+	name := strings.ToLower(strings.NewReplacer("/", "-", "_", "-", " ", "-", ".", "-").Replace(t.Name()))
+	room := 31 - len("b-") - len(suffix)
+	if len(name) > room {
+		name = name[:room]
+	}
+	return "b-" + name + suffix
+}
+
+func fixtureConfig(t *testing.T, base string) (*config.Config, *config.Overlay) {
+	id := backendID(t, "")
 	cfg := &config.Config{
 		APIVersion: config.ConfigMajor,
 		Listen:     config.DefaultListen,
-		Backends:   []config.Backend{{ID: "grafana", Kind: "grafana"}},
+		Backends:   []config.Backend{{ID: id, Kind: "grafana"}},
 	}
 	ov := &config.Overlay{
 		APIVersion: config.OverlayMajor,
-		Backends:   []config.OverlayBackend{{ID: "grafana", Address: base}},
+		Backends:   []config.OverlayBackend{{ID: id, Address: base}},
 	}
 	return cfg, ov
 }
@@ -97,13 +112,13 @@ func TestHealth(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			srv := serve(t, tc.status, tc.body)
-			cfg, ov := fixtureConfig(srv.URL)
+			cfg, ov := fixtureConfig(t, srv.URL)
 			doc, err := grafana.Health(context.Background(), cfg, ov, fixedNow)
 			if tc.want == "" {
 				if err != nil {
 					t.Fatalf("healthy backend returned %v", err)
 				}
-				if doc.State != reasons.StateOK || doc.Backend != "grafana" || doc.DetailCode != nil {
+				if doc.State != reasons.StateOK || doc.Backend != backendID(t, "") || doc.DetailCode != nil {
 					t.Fatalf("document = %+v", doc)
 				}
 				validateHealth(t, doc)
@@ -127,7 +142,7 @@ func TestHealthFailures(t *testing.T) {
 			http.Redirect(w, r, "/login", http.StatusFound)
 		}))
 		t.Cleanup(srv.Close)
-		cfg, ov := fixtureConfig(srv.URL)
+		cfg, ov := fixtureConfig(t, srv.URL)
 		_, err := grafana.Health(context.Background(), cfg, ov, fixedNow)
 		if exit, got := code(t, err); exit != exitcode.Unavailable || got != reasons.RedirectRefused {
 			t.Fatalf("got %d/%s", exit, got)
@@ -135,7 +150,7 @@ func TestHealthFailures(t *testing.T) {
 	})
 	t.Run("oversize body", func(t *testing.T) {
 		srv := serve(t, http.StatusOK, `{"database":"ok","padding":"`+strings.Repeat("x", 20<<10)+`"}`)
-		cfg, ov := fixtureConfig(srv.URL)
+		cfg, ov := fixtureConfig(t, srv.URL)
 		_, err := grafana.Health(context.Background(), cfg, ov, fixedNow)
 		if exit, got := code(t, err); exit != exitcode.Unavailable || got != reasons.BodyCap {
 			t.Fatalf("got %d/%s", exit, got)
@@ -147,14 +162,14 @@ func TestHealthFailures(t *testing.T) {
 			_, _ = w.Write([]byte(`{"database":"ok"}`))
 		}))
 		t.Cleanup(srv.Close)
-		cfg, ov := fixtureConfig(srv.URL)
+		cfg, ov := fixtureConfig(t, srv.URL)
 		_, err := grafana.Health(context.Background(), cfg, ov, fixedNow)
 		if exit, got := code(t, err); exit != exitcode.Unavailable || got != reasons.Timeout {
 			t.Fatalf("got %d/%s", exit, got)
 		}
 	})
 	t.Run("no address", func(t *testing.T) {
-		cfg, ov := fixtureConfig("http://unused.invalid")
+		cfg, ov := fixtureConfig(t, "http://unused.invalid")
 		ov.Backends = nil
 		state, detail, err := grafana.Check(context.Background(), cfg, ov, cfg.Backends[0])
 		if err != nil || state != reasons.StateUnavailable || detail != "no_address" {
@@ -162,7 +177,7 @@ func TestHealthFailures(t *testing.T) {
 		}
 	})
 	t.Run("no backend configured", func(t *testing.T) {
-		cfg, ov := fixtureConfig("http://unused.invalid")
+		cfg, ov := fixtureConfig(t, "http://unused.invalid")
 		cfg.Backends = nil
 		_, err := grafana.Health(context.Background(), cfg, ov, fixedNow)
 		if exit, got := code(t, err); exit != exitcode.Usage || got != "no_backend" {
@@ -217,4 +232,41 @@ func schemaFor(t *testing.T, name string) *jsonschema.Schema {
 		t.Fatalf("compile %s: %v", name, err)
 	}
 	return sch
+}
+
+// TestInFlightBound proves the backend has one shared client: three concurrent
+// health checks never put more than two requests on the wire.
+func TestInFlightBound(t *testing.T) {
+	var inFlight, peak int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n := atomic.AddInt32(&inFlight, 1)
+		for {
+			p := atomic.LoadInt32(&peak)
+			if n <= p || atomic.CompareAndSwapInt32(&peak, p, n) {
+				break
+			}
+		}
+		time.Sleep(40 * time.Millisecond)
+		atomic.AddInt32(&inFlight, -1)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"database":"ok"}`))
+	}))
+	t.Cleanup(srv.Close)
+
+	cfg, ov := fixtureConfig(t, srv.URL)
+	var wg sync.WaitGroup
+	for i := 0; i < 3; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if _, err := grafana.Health(context.Background(), cfg, ov, fixedNow); err != nil {
+				t.Errorf("targets: %v", err)
+			}
+		}()
+	}
+	wg.Wait()
+
+	if got := atomic.LoadInt32(&peak); got > 2 {
+		t.Fatalf("peak in flight = %d, want at most 2", got)
+	}
 }

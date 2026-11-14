@@ -86,7 +86,7 @@ func promReady(ctx context.Context, ov *config.Overlay, backend config.Backend) 
 	if !ok {
 		return reasons.StateUnavailable, "no_address", nil
 	}
-	client, err := httpx.New(httpx.Config{
+	client, err := httpx.ForBackend(backend.ID, httpx.Config{
 		Base:    address,
 		MaxBody: httpx.PromMaxBody,
 		Timeout: httpx.DefaultTimeout,
