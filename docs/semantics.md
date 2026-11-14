@@ -6,7 +6,7 @@ Vigil is a query surface. It combines the verdicts of named **authorities** into
 
 ## 1. Verdicts and `overall`
 
-An authority is a tool that publishes its own verdict document: Simplex now, Augur once its Vigil fields land. `verdicts[]` holds one entry per configured authority: `source`, `state` (`ok`, `stale`, `unavailable`), `severity` as the authority published it (null when unavailable), `reasons[]`, `observed_at` (the authority document's `generated_at`, null when no document could be read). A verdict's `reasons[]` carries only Vigil's own codes (`source_stale`, `authority_unavailable`). Simplex publishes no top-level reasons, so Vigil does not invent a verdict reason from its host reasons; those travel in `hosts[].reasons`.
+An authority is a tool that publishes its own verdict document: Simplex now, Augur once its Vigil fields land. `verdicts[]` holds one entry per configured authority: `source`, `state` (`ok`, `stale`, `unavailable`), `severity` as the authority published it (null when unavailable), `reasons[]`, `observed_at` (the authority document's `generated_at`, null when no document could be read). A verdict's `reasons[]` carries Vigil's own codes (`source_stale`, `authority_unavailable`, and the rest of section 4) plus any authority-level reasons the authority publishes, passed through unchanged. Simplex publishes none at top level, so today a Simplex verdict carries only Vigil's codes; Vigil does not invent a verdict reason from Simplex's host reasons, which travel in `hosts[].reasons`.
 
 Severity order is GREEN < YELLOW < RED.
 
@@ -42,7 +42,7 @@ A source joins `verdicts[]` only if it ships a document with its own heartbeat a
 
 ## 4. Reasons
 
-Authorities own their reason strings. Vigil passes them through unchanged on `hosts[].reasons` (and in the `augur{}` block once Augur's fields land) and checks only the shape `^[a-z][a-z0-9_]{0,47}$`, so an upstream addition never breaks it. Vigil's own reasons are `source_stale`, `source_unavailable`, `schema_major`, `clock_skew` (a file newer than its own `generated_at`) and `authority_unavailable`. A consumer shows an unknown reason as plain text.
+Authorities own their reason strings. Vigil passes them through unchanged on `hosts[].reasons`, on `verdicts[].reasons` for any authority-level reasons an authority publishes (Simplex publishes none; Augur will), and in the `augur{}` block once Augur's fields land. It checks only the shape `^[a-z][a-z0-9_]{0,47}$`, so an upstream addition never breaks it. Vigil's own reasons are `source_stale`, `source_unavailable`, `schema_major`, `clock_skew` (a file newer than its own `generated_at`) and `authority_unavailable`. A consumer shows an unknown reason as plain text.
 
 ## 5. Exit codes
 
