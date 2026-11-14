@@ -299,10 +299,10 @@ func vantage(b config.Backend) string {
 	return b.ID
 }
 
-// mapInstance turns a target instance label into a public slug: the overlay's
-// map first, then a value that is already a known slug (an overlay host slug or
-// one of the public six), otherwise unmapped. A slug-shaped label that nobody
-// declares is still a name, and a name is not published.
+// mapInstance turns a target instance label into a host slug: the overlay's map
+// first, then a value that is already a known slug (a slug the overlay lists),
+// otherwise unmapped. A slug-shaped label that nobody declares is still a name,
+// and a name is not published.
 func mapInstance(ov *config.Overlay, instance string) string {
 	if instance == "" {
 		return unmapped
