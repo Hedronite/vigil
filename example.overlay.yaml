@@ -1,0 +1,14 @@
+# Vigil example overlay (vigil.overlay/v0).
+#
+# The only place a backend address exists. Keys are the ids declared in
+# vigil.config/v0. A real overlay is never committed: copy this file to a
+# private location and replace the placeholders. The example hosts use the
+# reserved example.invalid name and the RFC 5737 documentation address
+# (198.51.100.0/24). Redirects are never followed; no userinfo, query or
+# fragment is accepted.
+apiVersion: vigil.overlay/v0
+backends:
+  - id: prom
+    address: http://prom.example.invalid:9090
+  - id: grafana
+    address: http://198.51.100.10:3000

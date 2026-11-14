@@ -1,0 +1,60 @@
+# Vigil example configuration (vigil.config/v0).
+#
+# Strict: unknown keys are errors. Slugs only — addresses live in an overlay
+# keyed by backend id, and secrets are referenced by environment variable or
+# path, never by value. A real deployment keeps a copy of this file in a
+# private location.
+apiVersion: vigil.config/v0
+
+# Default listener. One explicit IPv4 or bracketed IPv6 literal and a port.
+# A bracketed IPv6 value must be quoted, or YAML reads it as a flow
+# sequence:  listen: "[::1]:10082"
+# A wildcard address is rejected in every spelling; a non-loopback bind
+# additionally needs the explicit flag and the read token.
+listen: "127.0.0.1:10082"
+
+# Named backends. An id declared here is the only way to reach an address;
+# the address itself lives in the overlay.
+backends:
+  - id: prom
+    kind: prom
+  - id: grafana
+    kind: grafana
+
+# Authorities publish their own verdict documents; Vigil combines them into
+# overall and derives none of the severity itself.
+authorities:
+  - id: simplex
+    path_ref: env:VIGIL_SIMPLEX_DOC
+    stale_after: 180s
+  - id: augur
+    path_ref: env:VIGIL_AUGUR_DOC
+
+# Informational documents. They never colour overall.
+sources:
+  - id: scry
+    path_ref: env:VIGIL_SCRY_DOC
+  - id: cubit
+    path_ref: env:VIGIL_CUBIT_DOC
+
+# Named queries for the prom backend. The host slug is the only template
+# variable (see the CLI doc); there is no free-form path over HTTP or on the
+# CLI.
+queries:
+  - name: targets_up
+    backend: prom
+    expr: up
+  - name: exporter_up
+    backend: prom
+    expr: 'up{job="node_exporter"}'
+    timeout: 5s
+    max_series: 200
+
+freshness:
+  stale_after: 120s
+
+# Token files, referenced by environment variable of the same meaning or by
+# absolute path in a real deployment.
+tokens:
+  read_file: env:VIGIL_READ_TOKEN_FILE
+  signal_file: env:VIGIL_SIGNAL_TOKEN_FILE
