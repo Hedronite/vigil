@@ -105,10 +105,39 @@ A `vigil.signal/v0` is ephemeral and arrives only by authenticated POST.
 - The writer publishes by temp file, fsync and atomic rename, and keeps the last good file if a run fails. Vigil ages that file into `stale`.
 - Freshness is the age of the document's `generated_at`. A file modified time ahead of `generated_at` adds the reason `clock_skew`.
 - Simplex, Augur and Scry all arrive this way. Vigil stays exec-free and holds no cluster credentials.
+- The Simplex writer publishes its document on every exit that carries a verdict or a blind vantage: 0, 1, 2 and 5. It never writes on 3 (configuration error) or 4 (I/O error); with no file there is nothing to read, so Vigil reports that authority `unavailable`. The vendored Simplex fixtures show it: `testdata/simplex/config-error` (exit 3) and `testdata/simplex/io-error` (exit 4) hold an `exit` file and no document; every other case holds both.
+- The writer of record is `simplex serve --out PATH`, which rewrites the file every interval (default 30s, well inside Vigil's 120s `stale_after`). The fallback is a timer that runs `simplex check --json --out PATH`.
 - Prometheus and Grafana are queried live and have no freshness bound; their state is `ok` or unreachable.
 - Vigil queries the secondary Prometheus on lathe only. The primary's liveness reaches it through a named query on the peer series.
 
-## 10. Fixture index
+## 10. Versioning
+
+Every document carries an `apiVersion`: `vigil.summary/v0`, `vigil.signal/v0`, `vigil.error/v0`, `vigil.config/v0`, `vigil.overlay/v0`. Inside `v0` the change rule is additive: a field may be added, and never removed, renamed, re-typed or given a new meaning. Anything else needs a new major. A reader ignores fields it does not know, and refuses a major it does not know.
+
+- Vigil reading an authority document on an unknown major treats that authority as `unavailable`: severity null, reason `authority_unavailable`, `detail_code` `schema_major`. The caps in section 1 then apply. Fixture: `schema-major-mismatch`.
+- A consumer of `vigil.summary` (Facet, an agent) refuses a summary on an unknown major instead of guessing at its fields.
+- The five schemas under `schema/` are the contract. A conformance test validates every fixture against them, and the binary never runs the schema validator.
+
+## 11. Configuration
+
+`vigil.config/v0` is YAML and strict. The schema `schema/vigil.config.v0.schema.json` is the key list: an unknown key at any level is refused, and so is an unknown `apiVersion` major. Both are configuration errors, exit 3. Fixtures: `testdata/config/invalid/unknown-key.yaml` and `testdata/config/invalid/wrong-major.yaml`.
+
+The top-level keys are:
+
+| Key | Meaning |
+| --- | --- |
+| `apiVersion` | required; `vigil.config/v0` |
+| `authorities` | required, at least one: `simplex` or `augur`, each with a `path_ref` and an optional `stale_after` |
+| `listen` | the bind address (section 6) |
+| `backends` | named backends, each an `id` and a `kind` (`prom` or `grafana`) and nothing else |
+| `sources` | informational documents: `scry` or `cubit`, each with a `path_ref` |
+| `queries` | named queries (section 7) |
+| `freshness` | `stale_after`, default 120s |
+| `tokens` | `read_file` and `signal_file`, the token file locations (section 6) |
+
+Named backends and named queries come from config only. No config field takes a URL, an address or a selector: a backend's address lives in the off-repo overlay (`vigil.overlay/v0`), keyed by the backend ids declared here. A locator (`path_ref`, a token file) is an environment reference (`env:NAME`) or an absolute path with no traversal. Fixtures for the refusals: `testdata/config/invalid/no-authorities.yaml`, `authority-unknown.yaml`, `query-url.yaml`, `path-ref-traversal.yaml`.
+
+## 12. Fixture index
 
 `testdata/summary/<case>/` holds `document.json` and `expected_exit`. No golden carries an `augur{}` block: its content is frozen when Augur's fields land, and Augur's status rides in `verdicts[]` and `sources[]`.
 
