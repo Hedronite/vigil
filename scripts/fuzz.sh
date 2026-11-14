@@ -60,8 +60,20 @@ if [ "${1:-}" = "--selftest" ]; then
 		echo "fuzz selftest FAIL: a missing target was not caught"
 		fail=1
 	fi
+	# A name that is only the start of a real target (FuzzConf of FuzzConfig)
+	# or only its end (zzConfig) must not count as found. An unanchored
+	# matcher passes the first with a leading anchor missing and the second
+	# with a trailing one missing, so both are planted.
+	if EXPECTED="FuzzConf" check_expected "$found" 2>/dev/null; then
+		echo "fuzz selftest FAIL: a prefix of a target counted as the target"
+		fail=1
+	fi
+	if EXPECTED="zzConfig" check_expected "$found" 2>/dev/null; then
+		echo "fuzz selftest FAIL: a suffix of a target counted as the target"
+		fail=1
+	fi
 	if EXPECTED="FuzzConfigX" check_expected "$found" 2>/dev/null; then
-		echo "fuzz selftest FAIL: a prefix match counted as the target"
+		echo "fuzz selftest FAIL: a longer name counted as the target"
 		fail=1
 	fi
 	[ "$fail" -eq 0 ] && echo "fuzz selftest ok: every expected target is found, a missing one fails"
