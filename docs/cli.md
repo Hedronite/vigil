@@ -5,9 +5,6 @@ alone on stdout; every failure prints one JSON line on stderr and nothing on
 stdout. The human tables are renderers of the same document — no command
 invents a second shape, and a table never prints a field the document lacks.
 
-The `--help` texts below are drafted from the command tree; they are
-refreshed from the real binary once the command wiring merges.
-
 ## Global flags
 
 | Flag | Meaning |
@@ -17,24 +14,32 @@ refreshed from the real binary once the command wiring merges.
 | `--json` | print the document alone on stdout (no table, no decoration) |
 | `--now <RFC 3339>` | pin the clock; used by tests and deterministic renders |
 
-`--help` output (draft, from the binary's command tree):
+`vigil --help` output, captured from the binary:
 
 ```
 Vigil reads named backends (Prometheus, Grafana) through names in its
 config. No command takes a URL, a selector or PromQL.
-
+Usage:
+  vigil [flags]
+  vigil [command]
+Available Commands:
+  grafana     Check the named Grafana backend
+  help        Help about any command
+  prom        Query the named Prometheus backend
+  sources     List the configured backends and their reachability
+  version     Print the version, the commit and the Go runtime
 Flags:
-  --config string   path to the vigil.config/v0 file
-  --overlay string  path to the vigil.overlay/v0 file (backend addresses)
-  --json            print the document alone on stdout
-  --now string      pin the clock to an RFC 3339 time (tests and deterministic renders)
-
-Commands:
-  prom      Query the named Prometheus backend
-  grafana   Check the named Grafana backend
-  sources   List the configured backends and their reachability
-  version   Print the version, the commit and the Go runtime
+      --config string    path to the vigil.config/v0 file
+  -h, --help             help for vigil
+      --json             print the document alone on stdout
+      --now string       pin the clock to an RFC 3339 time (tests and deterministic renders)
+      --overlay string   path to the vigil.overlay/v0 file (backend addresses)
+Use "vigil [command] --help" for more information about a command.
 ```
+
+Every subcommand accepts the four global flags as global flags and `-h,
+--help`; `prom query` adds `--host`. Use `vigil <command> --help` for each
+command's own text.
 
 A path value must be a path: a URL-shaped `--config` or `--overlay` value is
 a usage error (exit 3). A malformed `--now` is also exit 3.
