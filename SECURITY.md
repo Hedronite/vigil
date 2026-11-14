@@ -8,7 +8,7 @@ Please do not file a public issue or pull request for a vulnerability, and do no
 
 A useful report has the version or commit, what you did, what you expected, what happened, and the smallest input that shows it. A fixture or a failing test is the best form.
 
-We acknowledge a report within seven days and agree a disclosure date with you once the fix is understood.
+We acknowledge a report as soon as practical, and agree a disclosure date with you once the fix is understood.
 
 ## Supported versions
 
