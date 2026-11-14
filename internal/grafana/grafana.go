@@ -69,7 +69,7 @@ func Check(ctx context.Context, cfg *config.Config, ov *config.Overlay, backend 
 	if !ok {
 		return reasons.StateUnavailable, codeNoAddress, nil
 	}
-	client, err := httpx.New(httpx.Config{
+	client, err := httpx.ForBackend(backend.ID, httpx.Config{
 		Base:    address,
 		MaxBody: httpx.GrafanaMaxBody,
 		Timeout: 2 * time.Second,

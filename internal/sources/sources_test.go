@@ -8,6 +8,9 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -52,20 +55,33 @@ func backends(t *testing.T, promStatus int, grafanaBody string) (promURL, grafan
 	return prom.URL, graf.URL
 }
 
-func cfgFor(promURL, grafanaURL string) (*config.Config, *config.Overlay) {
+// backendID is unique per test. The client registry is process-wide and keeps
+// the first configuration for an id, so two tests that share an id would share
+// a client pointed at the first test's server.
+func backendID(t *testing.T, suffix string) string {
+	name := strings.ToLower(strings.NewReplacer("/", "-", "_", "-", " ", "-", ".", "-").Replace(t.Name()))
+	room := 31 - len("b-") - len(suffix)
+	if len(name) > room {
+		name = name[:room]
+	}
+	return "b-" + name + suffix
+}
+
+func cfgFor(t *testing.T, promURL, grafanaURL string) (*config.Config, *config.Overlay) {
+	promID, grafanaID := backendID(t, "-p"), backendID(t, "-g")
 	cfg := &config.Config{
 		APIVersion: config.ConfigMajor,
 		Listen:     config.DefaultListen,
 		Backends: []config.Backend{
-			{ID: "prom", Kind: "prom", Vantage: "lathe"},
-			{ID: "grafana", Kind: "grafana"},
+			{ID: promID, Kind: "prom", Vantage: "lathe"},
+			{ID: grafanaID, Kind: "grafana"},
 		},
 	}
 	ov := &config.Overlay{
 		APIVersion: config.OverlayMajor,
 		Backends: []config.OverlayBackend{
-			{ID: "prom", Address: promURL},
-			{ID: "grafana", Address: grafanaURL},
+			{ID: promID, Address: promURL},
+			{ID: grafanaID, Address: grafanaURL},
 		},
 	}
 	return cfg, ov
@@ -76,7 +92,7 @@ func cfgFor(promURL, grafanaURL string) (*config.Config, *config.Overlay) {
 func TestSourcesRows(t *testing.T) {
 	t.Run("both healthy", func(t *testing.T) {
 		prom, graf := backends(t, http.StatusOK, `{"database":"ok"}`)
-		cfg, ov := cfgFor(prom, graf)
+		cfg, ov := cfgFor(t, prom, graf)
 		doc, err := sources.Sources(context.Background(), cfg, ov, fixedNow)
 		if err != nil {
 			t.Fatalf("sources: %v", err)
@@ -100,7 +116,7 @@ func TestSourcesRows(t *testing.T) {
 
 	t.Run("backend down is a row state", func(t *testing.T) {
 		prom, graf := backends(t, http.StatusServiceUnavailable, `<html>login</html>`)
-		cfg, ov := cfgFor(prom, graf)
+		cfg, ov := cfgFor(t, prom, graf)
 		doc, err := sources.Sources(context.Background(), cfg, ov, fixedNow)
 		if err != nil {
 			t.Fatalf("a down backend failed the command: %v", err)
@@ -116,7 +132,7 @@ func TestSourcesRows(t *testing.T) {
 
 	t.Run("missing address", func(t *testing.T) {
 		prom, graf := backends(t, http.StatusOK, `{"database":"ok"}`)
-		cfg, ov := cfgFor(prom, graf)
+		cfg, ov := cfgFor(t, prom, graf)
 		ov.Backends = ov.Backends[:1]
 		doc, err := sources.Sources(context.Background(), cfg, ov, fixedNow)
 		if err != nil {
@@ -128,7 +144,7 @@ func TestSourcesRows(t *testing.T) {
 	})
 
 	t.Run("no backends is an empty table", func(t *testing.T) {
-		cfg, ov := cfgFor("http://unused.invalid", "http://unused.invalid")
+		cfg, ov := cfgFor(t, "http://unused.invalid", "http://unused.invalid")
 		cfg.Backends = nil
 		doc, err := sources.Sources(context.Background(), cfg, ov, fixedNow)
 		if err != nil {
@@ -187,4 +203,42 @@ func schema(t *testing.T) *jsonschema.Schema {
 		t.Fatalf("compile: %v", err)
 	}
 	return sch
+}
+
+// TestInFlightBound proves each backend has one shared client: three concurrent
+// runs never put more than two requests on one backend's wire.
+func TestInFlightBound(t *testing.T) {
+	var inFlight, peak int32
+	prom := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n := atomic.AddInt32(&inFlight, 1)
+		for {
+			p := atomic.LoadInt32(&peak)
+			if n <= p || atomic.CompareAndSwapInt32(&peak, p, n) {
+				break
+			}
+		}
+		time.Sleep(40 * time.Millisecond)
+		atomic.AddInt32(&inFlight, -1)
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(prom.Close)
+
+	cfg, ov := cfgFor(t, prom.URL, "http://unused.invalid")
+	cfg.Backends = cfg.Backends[:1]
+
+	var wg sync.WaitGroup
+	for i := 0; i < 3; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if _, err := sources.Sources(context.Background(), cfg, ov, fixedNow); err != nil {
+				t.Errorf("sources: %v", err)
+			}
+		}()
+	}
+	wg.Wait()
+
+	if got := atomic.LoadInt32(&peak); got > 2 {
+		t.Fatalf("peak in flight = %d, want at most 2", got)
+	}
 }

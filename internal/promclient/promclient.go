@@ -287,7 +287,7 @@ func newClient(cfg *config.Config, ov *config.Overlay, backend config.Backend) (
 	if !ok {
 		return nil, exitcode.Newf(exitcode.Usage, codeNoAddress, "the backend has no address in the overlay")
 	}
-	client, err := httpx.New(httpx.Config{Base: address, MaxBody: httpx.PromMaxBody, Timeout: httpx.DefaultTimeout})
+	client, err := httpx.ForBackend(backend.ID, httpx.Config{Base: address, MaxBody: httpx.PromMaxBody, Timeout: httpx.DefaultTimeout})
 	if err != nil {
 		return nil, exitcode.Newf(exitcode.Usage, codeNoAddress, "the backend address is not usable")
 	}
