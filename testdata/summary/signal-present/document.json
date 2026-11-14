@@ -12,24 +12,24 @@
     }
   ],
   "vantage": {
-    "id": "lathe",
+    "id": "lab",
     "status": "ok"
   },
   "hosts": [
     {
-      "id": "box",
+      "id": "edge",
       "severity": "GREEN",
       "reasons": [],
       "source": "simplex"
     },
     {
-      "id": "lathe",
+      "id": "lab",
       "severity": "GREEN",
       "reasons": [],
       "source": "simplex"
     },
     {
-      "id": "tower",
+      "id": "spoke",
       "severity": "GREEN",
       "reasons": [
         "expected_dark",

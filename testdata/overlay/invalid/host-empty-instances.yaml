@@ -3,5 +3,5 @@ backends:
   - id: prom
     address: http://prom.example.invalid:9090
 hosts:
-  - slug: castle
+  - slug: core
     instances: []

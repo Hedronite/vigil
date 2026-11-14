@@ -1,32 +1,32 @@
 {
   "apiVersion": "vigil.query/v0",
   "backend": "prom",
-  "vantage": "lathe",
+  "vantage": "lab",
   "name": "up_by_host",
   "evaluated_at": "2026-11-14T09:00:00Z",
   "series": [
     {
-      "host": "castle",
+      "host": "core",
       "value": "1"
     },
     {
-      "host": "tower",
+      "host": "spoke",
       "value": "-0.5"
     },
     {
-      "host": "lathe",
+      "host": "lab",
       "value": "1.5e-3"
     },
     {
-      "host": "box",
+      "host": "edge",
       "value": "NaN"
     },
     {
-      "host": "apiary",
+      "host": "annex",
       "value": "+Inf"
     },
     {
-      "host": "citadel",
+      "host": "depot",
       "value": "-Inf"
     }
   ]

@@ -5,7 +5,7 @@
     "result": [
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -15,7 +15,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -25,7 +25,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -35,7 +35,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -45,7 +45,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -55,7 +55,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -65,7 +65,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -75,7 +75,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -85,7 +85,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -95,7 +95,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -105,7 +105,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -115,7 +115,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -125,7 +125,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -135,7 +135,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -145,7 +145,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -155,7 +155,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -165,7 +165,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -175,7 +175,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -185,7 +185,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -195,7 +195,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -205,7 +205,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -215,7 +215,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -225,7 +225,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -235,7 +235,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -245,7 +245,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -255,7 +255,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -265,7 +265,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -275,7 +275,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -285,7 +285,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -295,7 +295,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -305,7 +305,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -315,7 +315,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -325,7 +325,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -335,7 +335,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -345,7 +345,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -355,7 +355,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -365,7 +365,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -375,7 +375,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -385,7 +385,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -395,7 +395,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -405,7 +405,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -415,7 +415,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -425,7 +425,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -435,7 +435,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -445,7 +445,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -455,7 +455,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -465,7 +465,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -475,7 +475,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -485,7 +485,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -495,7 +495,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -505,7 +505,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -515,7 +515,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -525,7 +525,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -535,7 +535,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -545,7 +545,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -555,7 +555,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -565,7 +565,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -575,7 +575,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -585,7 +585,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -595,7 +595,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -605,7 +605,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -615,7 +615,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -625,7 +625,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -635,7 +635,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -645,7 +645,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -655,7 +655,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -665,7 +665,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -675,7 +675,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -685,7 +685,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -695,7 +695,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -705,7 +705,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -715,7 +715,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -725,7 +725,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -735,7 +735,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -745,7 +745,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -755,7 +755,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -765,7 +765,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -775,7 +775,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -785,7 +785,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -795,7 +795,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -805,7 +805,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -815,7 +815,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -825,7 +825,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -835,7 +835,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -845,7 +845,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -855,7 +855,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -865,7 +865,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -875,7 +875,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -885,7 +885,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -895,7 +895,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -905,7 +905,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -915,7 +915,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -925,7 +925,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -935,7 +935,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -945,7 +945,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -955,7 +955,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -965,7 +965,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -975,7 +975,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -985,7 +985,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -995,7 +995,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1005,7 +1005,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1015,7 +1015,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1025,7 +1025,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1035,7 +1035,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1045,7 +1045,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1055,7 +1055,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1065,7 +1065,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1075,7 +1075,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1085,7 +1085,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1095,7 +1095,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1105,7 +1105,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1115,7 +1115,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1125,7 +1125,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1135,7 +1135,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1145,7 +1145,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1155,7 +1155,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1165,7 +1165,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1175,7 +1175,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1185,7 +1185,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1195,7 +1195,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1205,7 +1205,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1215,7 +1215,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1225,7 +1225,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1235,7 +1235,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1245,7 +1245,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1255,7 +1255,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1265,7 +1265,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1275,7 +1275,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1285,7 +1285,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1295,7 +1295,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1305,7 +1305,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1315,7 +1315,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1325,7 +1325,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1335,7 +1335,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1345,7 +1345,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1355,7 +1355,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1365,7 +1365,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1375,7 +1375,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1385,7 +1385,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1395,7 +1395,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1405,7 +1405,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1415,7 +1415,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1425,7 +1425,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1435,7 +1435,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1445,7 +1445,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1455,7 +1455,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1465,7 +1465,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1475,7 +1475,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1485,7 +1485,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1495,7 +1495,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1505,7 +1505,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1515,7 +1515,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1525,7 +1525,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1535,7 +1535,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1545,7 +1545,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1555,7 +1555,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1565,7 +1565,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1575,7 +1575,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1585,7 +1585,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1595,7 +1595,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1605,7 +1605,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1615,7 +1615,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1625,7 +1625,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1635,7 +1635,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1645,7 +1645,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1655,7 +1655,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1665,7 +1665,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1675,7 +1675,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1685,7 +1685,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1695,7 +1695,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1705,7 +1705,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1715,7 +1715,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1725,7 +1725,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1735,7 +1735,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1745,7 +1745,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1755,7 +1755,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1765,7 +1765,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1775,7 +1775,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1785,7 +1785,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1795,7 +1795,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1805,7 +1805,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1815,7 +1815,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1825,7 +1825,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1835,7 +1835,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1845,7 +1845,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1855,7 +1855,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1865,7 +1865,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1875,7 +1875,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1885,7 +1885,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1895,7 +1895,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1905,7 +1905,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1915,7 +1915,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1925,7 +1925,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1935,7 +1935,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1945,7 +1945,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1955,7 +1955,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1965,7 +1965,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1975,7 +1975,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1985,7 +1985,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -1995,7 +1995,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [
@@ -2005,7 +2005,7 @@
       },
       {
         "metric": {
-          "instance": "tower",
+          "instance": "spoke",
           "job": "node"
         },
         "value": [

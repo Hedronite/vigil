@@ -19,7 +19,7 @@ listen: 127.0.0.1:10082
 backends:
   - id: prom
     kind: prom
-    vantage: lathe
+    vantage: lab
   - id: grafana
     kind: grafana
 authorities:
@@ -263,7 +263,7 @@ func TestSourcesRowsAreData(t *testing.T) {
 			if r.LastOK != nil {
 				t.Errorf("%s: last_ok = %v, V1 keeps no state", tc.name, *r.LastOK)
 			}
-			if r.Kind == "prom" && r.Vantage != "lathe" {
+			if r.Kind == "prom" && r.Vantage != "lab" {
 				t.Errorf("%s: prom row vantage = %q", tc.name, r.Vantage)
 			}
 		}

@@ -97,7 +97,7 @@ listen: 127.0.0.1:10082
 backends:
   - id: prom
     kind: prom
-    vantage: lathe
+    vantage: lab
 authorities:
   - id: simplex
     path_ref: /var/lib/vigil/simplex.json
@@ -117,7 +117,8 @@ queries:
 var backendSeq atomic.Int32
 
 // writeDocs writes a config and an overlay that points at address, under a
-// backend id no other test uses.
+// backend id no other test uses. The overlay lists the host alias core in
+// hosts[], because a --host slug is accepted only from the overlay.
 func writeDocs(t *testing.T, cfgBody, address string) (cfg, ov string) {
 	t.Helper()
 	id := fmt.Sprintf("prom%d", backendSeq.Add(1))
@@ -128,7 +129,7 @@ func writeDocs(t *testing.T, cfgBody, address string) (cfg, ov string) {
 	if err := os.WriteFile(cfg, []byte(cfgBody), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	overlay := fmt.Sprintf("apiVersion: vigil.overlay/v0\nbackends:\n  - id: %s\n    address: %s\n", id, address)
+	overlay := fmt.Sprintf("apiVersion: vigil.overlay/v0\nbackends:\n  - id: %s\n    address: %s\nhosts:\n  - slug: core\n    instances:\n      - core.example.invalid:9100\n", id, address)
 	if err := os.WriteFile(ov, []byte(overlay), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -164,7 +165,7 @@ func TestPromTargetsJSON(t *testing.T) {
 			t.Errorf("stdout leaks %q:\n%s", leak, out)
 		}
 	}
-	if !strings.Contains(out, `"vantage":"lathe"`) || !strings.Contains(out, `"backend":"prom`) {
+	if !strings.Contains(out, `"vantage":"lab"`) || !strings.Contains(out, `"backend":"prom`) {
 		t.Errorf("document lacks backend or vantage: %s", out)
 	}
 	// The same inputs print the same bytes.
@@ -183,7 +184,7 @@ func TestPromTargetsTable(t *testing.T) {
 	}
 	// The table is internal/render's, called as it is: header block, a blank
 	// line, then the rows.
-	for _, want := range []string{"BACKEND", "VANTAGE", "lathe", "GENERATED_AT  2026-11-14T09:00:00Z", "TARGET", "JOB", "HEALTH", "LAST_SCRAPE"} {
+	for _, want := range []string{"BACKEND", "VANTAGE", "lab", "GENERATED_AT  2026-11-14T09:00:00Z", "TARGET", "JOB", "HEALTH", "LAST_SCRAPE"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("table lacks %q:\n%s", want, out)
 		}
@@ -200,7 +201,7 @@ func TestPromQueryJSON(t *testing.T) {
 	cfg, ov := writeDocs(t, wireConfig, srv.URL)
 	for _, args := range [][]string{
 		{"prom", "query", "up_all"},
-		{"prom", "query", "up_by_host", "--host", "castle"},
+		{"prom", "query", "up_by_host", "--host", "core"},
 	} {
 		full := append(append([]string{}, args...), "--json", "--config", cfg, "--overlay", ov, "--now", "2026-11-14T09:00:00Z")
 		code, out, errs := live(t, full...)
@@ -235,7 +236,7 @@ func TestPromQueryHostRules(t *testing.T) {
 		code string
 	}{
 		{[]string{"prom", "query", "up_by_host"}, "missing_host"},
-		{[]string{"prom", "query", "up_all", "--host", "castle"}, "unexpected_host"},
+		{[]string{"prom", "query", "up_all", "--host", "core"}, "unexpected_host"},
 		{[]string{"prom", "query", "up_by_host", "--host", "nosuchhost"}, "unknown_host"},
 		{[]string{"prom", "query", "no_such_query"}, "unknown_query"},
 	} {
@@ -316,7 +317,7 @@ func TestConfigErrorsDoNotEchoValues(t *testing.T) {
 		"locator-url":    strings.Replace(wireConfig, "path_ref: /var/lib/vigil/simplex.json", "path_ref: https://"+marker+".example.invalid/x", 1),
 		"unknown-key":    wireConfig + marker + ": 1\n",
 		"query-name-url": strings.Replace(wireConfig, "name: up_all", "name: http://"+marker+".example.invalid/x", 1),
-		"dup-backend":    strings.Replace(wireConfig, "backends:\n  - id: prom\n    kind: prom\n    vantage: lathe\n", "backends:\n  - id: prom\n    kind: prom\n  - id: prom\n    kind: prom\n", 1),
+		"dup-backend":    strings.Replace(wireConfig, "backends:\n  - id: prom\n    kind: prom\n    vantage: lab\n", "backends:\n  - id: prom\n    kind: prom\n  - id: prom\n    kind: prom\n", 1),
 	} {
 		cfg, ov := writeDocs(t, body, srv.URL)
 		code, out, errs := live(t, "prom", "targets", "--config", cfg, "--overlay", ov)

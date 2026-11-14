@@ -5,9 +5,9 @@ backends:
   - id: grafana
     address: http://grafana.example.invalid:3000
 hosts:
-  - slug: castle
+  - slug: core
     instances:
-      - castle.example.invalid:9100
-  - slug: tower
+      - core.example.invalid:9100
+  - slug: spoke
     instances:
-      - tower.example.invalid:9100
+      - spoke.example.invalid:9100

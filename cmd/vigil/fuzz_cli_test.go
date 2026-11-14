@@ -40,16 +40,16 @@ var usageMessages = map[string]bool{
 // overridden never reaches anything.
 func FuzzCLIArgs(f *testing.F) {
 	for _, s := range []string{
-		"version", "prom targets", "prom query up_all", "prom query up_by_host --host castle",
+		"version", "prom targets", "prom query up_all", "prom query up_by_host --host core",
 		"sources --json", "grafana health --now 2026-11-14T09:00:00Z", "--help", "prom --help",
 		"sources http://leak.example.invalid/x", "prom query up{job=\"x\"}", "--config https://leak.example.invalid sources",
 		"--overlay //leak/x sources", "prom query rate(x[5m]) --host 192.0.2.7:9090", "--now yesterday sources",
 		"--nope", "-x", "", "prom", "grafana", "help", "completion bash", "sources --config", "--json=maybe sources",
-		"prom query a b", "version extra", "sources --host castle", "--now 2026-11-14T09:00:00Z --json prom targets",
+		"prom query a b", "version extra", "sources --host core", "--now 2026-11-14T09:00:00Z --json prom targets",
 		"prom query http://leak.example.invalid/x", "prom query up_all --host http://leak.example.invalid",
 		"prom query up(x)", "prom query up_all --host a{b}",
 		"prom query a --host \" --host ", "-hh \"", "\"000000 -h", "--overlay \" sources",
-		"prom query up_all --config ? --overlay #", "prom query up_all --host Castle", "prom query UP",
+		"prom query up_all --config ? --overlay #", "prom query up_all --host Core", "prom query UP",
 	} {
 		f.Add(s)
 	}

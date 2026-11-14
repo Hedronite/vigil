@@ -2,7 +2,7 @@ apiVersion: vigil.config/v0
 backends:
   - id: prom
     kind: prom
-    vantage: lathe
+    vantage: lab
   - id: grafana
     kind: grafana
 authorities:

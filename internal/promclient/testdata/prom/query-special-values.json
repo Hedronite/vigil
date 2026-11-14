@@ -5,7 +5,7 @@
     "result": [
       {
         "metric": {
-          "instance": "tower"
+          "instance": "spoke"
         },
         "value": [
           1763107200,
@@ -14,7 +14,7 @@
       },
       {
         "metric": {
-          "instance": "tower"
+          "instance": "spoke"
         },
         "value": [
           1763107200,
@@ -23,7 +23,7 @@
       },
       {
         "metric": {
-          "instance": "tower"
+          "instance": "spoke"
         },
         "value": [
           1763107200,

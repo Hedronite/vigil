@@ -262,17 +262,17 @@ func TestJSONBytes(t *testing.T) {
 		}
 		switch {
 		case kc.kind == "targets" && kc.name == "mixed":
-			want := `{"apiVersion":"vigil.targets/v0","backend":"prom","vantage":"lathe","generated_at":"2026-11-14T09:00:00Z","targets":[{"host":"castle","job":"node","health":"up","last_scrape":"2026-11-14T09:00:00Z"},{"host":"unmapped","job":"redacted","health":"unknown","last_scrape":null}]}` + "\n"
+			want := `{"apiVersion":"vigil.targets/v0","backend":"prom","vantage":"lab","generated_at":"2026-11-14T09:00:00Z","targets":[{"host":"core","job":"node","health":"up","last_scrape":"2026-11-14T09:00:00Z"},{"host":"unmapped","job":"redacted","health":"unknown","last_scrape":null}]}` + "\n"
 			if got := string(jsonBytes(t, kc)); got != want {
 				t.Errorf("targets json = %s, want %s", got, want)
 			}
 		case kc.kind == "query" && kc.name == "one-host":
-			want := `{"apiVersion":"vigil.query/v0","backend":"prom","vantage":"lathe","name":"up_by_host","host":"castle","evaluated_at":"2026-11-14T09:00:00Z","series":[{"host":"castle","job":"node","value":"1"}]}` + "\n"
+			want := `{"apiVersion":"vigil.query/v0","backend":"prom","vantage":"lab","name":"up_by_host","host":"core","evaluated_at":"2026-11-14T09:00:00Z","series":[{"host":"core","job":"node","value":"1"}]}` + "\n"
 			if got := string(jsonBytes(t, kc)); got != want {
 				t.Errorf("query json = %s, want %s", got, want)
 			}
 		case kc.kind == "query" && kc.name == "all-hosts":
-			want := `{"apiVersion":"vigil.query/v0","backend":"prom","vantage":"lathe","name":"up_by_host","evaluated_at":"2026-11-14T09:00:00Z","series":[]}` + "\n"
+			want := `{"apiVersion":"vigil.query/v0","backend":"prom","vantage":"lab","name":"up_by_host","evaluated_at":"2026-11-14T09:00:00Z","series":[]}` + "\n"
 			if got := string(jsonBytes(t, kc)); got != want {
 				t.Errorf("query json = %s, want %s", got, want)
 			}
@@ -282,7 +282,7 @@ func TestJSONBytes(t *testing.T) {
 				t.Errorf("health json = %s, want %s", got, want)
 			}
 		case kc.kind == "sources" && kc.name == "backends":
-			want := `{"apiVersion":"vigil.sources/v0","generated_at":"2026-11-14T09:00:00Z","sources":[{"id":"prom","kind":"prom","state":"ok","observed_at":"2026-11-14T09:00:00Z","last_ok":"2026-11-14T09:00:00Z","vantage":"lathe"},{"id":"grafana","kind":"grafana","state":"unavailable","observed_at":null,"last_ok":null,"detail_code":"not_health"}]}` + "\n"
+			want := `{"apiVersion":"vigil.sources/v0","generated_at":"2026-11-14T09:00:00Z","sources":[{"id":"prom","kind":"prom","state":"ok","observed_at":"2026-11-14T09:00:00Z","last_ok":"2026-11-14T09:00:00Z","vantage":"lab"},{"id":"grafana","kind":"grafana","state":"unavailable","observed_at":null,"last_ok":null,"detail_code":"not_health"}]}` + "\n"
 			if got := string(jsonBytes(t, kc)); got != want {
 				t.Errorf("sources json = %s, want %s", got, want)
 			}
@@ -402,8 +402,8 @@ func TestTablesPrintOnlyWhatTheDocumentHas(t *testing.T) {
 	if err := render.Query(&qbuf1, &qd1); err != nil {
 		t.Fatalf("render query: %v", err)
 	}
-	if got := lineFields(t, qbuf1.String(), "HOST"); !equalFields(got, []string{"HOST", "castle"}) {
-		t.Errorf("one-host HOST line = %v, want HOST castle", got)
+	if got := lineFields(t, qbuf1.String(), "HOST"); !equalFields(got, []string{"HOST", "core"}) {
+		t.Errorf("one-host HOST line = %v, want HOST core", got)
 	}
 	if got := headerFields(t, qbuf1.String()); !equalFields(got, []string{"HOST", "JOB", "VALUE"}) {
 		t.Errorf("one-host header = %v, want HOST JOB VALUE", got)
@@ -423,12 +423,12 @@ func TestTablesPrintOnlyWhatTheDocumentHas(t *testing.T) {
 	// not as a tracked golden: the scrub's hostname rule reads a dotted cell
 	// as a name, and the value strip only covers the JSON value shape.
 	for key, want := range map[string][]string{
-		"castle":  {"castle", "1"},
-		"tower":   {"tower", "-0.5"},
-		"lathe":   {"lathe", "1.5e-3"},
-		"box":     {"box", "NaN"},
-		"apiary":  {"apiary", "+Inf"},
-		"citadel": {"citadel", "-Inf"},
+		"core":  {"core", "1"},
+		"spoke": {"spoke", "-0.5"},
+		"lab":   {"lab", "1.5e-3"},
+		"edge":  {"edge", "NaN"},
+		"annex": {"annex", "+Inf"},
+		"depot": {"depot", "-Inf"},
 	} {
 		if got := lineFields(t, qbuf2.String(), key); !equalFields(got, want) {
 			t.Errorf("special-values row %s = %v, want %v", key, got, want)
@@ -518,13 +518,13 @@ func TestNullabilityRoundTrip(t *testing.T) {
 		t.Errorf("row with absent detail code and vantage = %s, want %s", got, wantAbsent)
 	}
 	row.DetailCode = new("not_health")
-	row.Vantage = "lathe"
-	wantPresent := `{"id":"prom","kind":"prom","state":"ok","observed_at":"2026-11-14T09:00:00Z","last_ok":null,"detail_code":"not_health","vantage":"lathe"}`
+	row.Vantage = "lab"
+	wantPresent := `{"id":"prom","kind":"prom","state":"ok","observed_at":"2026-11-14T09:00:00Z","last_ok":null,"detail_code":"not_health","vantage":"lab"}`
 	if got := roundTrip(row); got != wantPresent {
 		t.Errorf("row with present detail code and vantage = %s, want %s", got, wantPresent)
 	}
 	row.ObservedAt = nil
-	wantNull := `{"id":"prom","kind":"prom","state":"ok","observed_at":null,"last_ok":null,"detail_code":"not_health","vantage":"lathe"}`
+	wantNull := `{"id":"prom","kind":"prom","state":"ok","observed_at":null,"last_ok":null,"detail_code":"not_health","vantage":"lab"}`
 	if got := roundTrip(row); got != wantNull {
 		t.Errorf("row with null observed at = %s, want %s", got, wantNull)
 	}

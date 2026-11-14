@@ -84,7 +84,7 @@ There is no `/v0/query`, no `/v0/queries`, and no route that takes a URL, a sele
 
 - **The name is the only handle.** It must match the shape of a configured name (`^[a-z][a-z0-9_]{0,47}$`). A URL, a selector or an expression in its place is a usage error, exit 3, before any file is read. Test: `TestURLShapedArgumentsExitUsage`.
 - **One placeholder, one literal.** The host slug is the only template variable, and the only substitution is the exact text `{{.host}}`. Vigil replaces that text and runs no template engine. Config validation refuses any other `{{` in an `expr`. Fixture: `testdata/config/invalid/expr-second-variable.yaml`.
-- **`--host` is checked before it reaches an expression.** It must be a slug (`^[a-z][a-z0-9-]{0,31}$`) that is listed in the overlay's `hosts[]` or is one of the public slugs. Anything else is exit 3. An unchecked value would let a caller write PromQL through a label matcher.
+- **`--host` is checked before it reaches an expression.** It must be a slug (`^[a-z][a-z0-9-]{0,31}$`) that is listed in the overlay's `hosts[]`. No slug is built in, so a slug the overlay does not list is exit 3, the same as any other unknown value. An unchecked value would let a caller write PromQL through a label matcher.
 - **The expression and the flag must agree.** An `expr` that names `{{.host}}`, run without `--host`, is exit 3 with the code `missing_host`. `--host` given to an `expr` with no placeholder is exit 3 with the code `unexpected_host`. There is no fan-out in V1: one run asks about one host or about the whole expression, never about every host in turn.
 - **Instant queries only.** The request carries `query`, `time` (the pinned clock when `--now` is set), `timeout` and `limit`.
 - **Deadline.** 5s by default and 10s at most, set per query in config as `5s` to `10s`. It is sent as the API `timeout` parameter and enforced by a client deadline. A longer value is refused at load. Fixture: `testdata/config/invalid/timeout-too-long.yaml`.
@@ -115,7 +115,7 @@ A `vigil.signal/v0` is ephemeral and arrives only by authenticated POST.
 - The Simplex writer publishes its document on every exit that carries a verdict or a blind vantage: 0, 1, 2 and 5. It never writes on 3 (configuration error) or 4 (I/O error); with no file there is nothing to read, so Vigil reports that authority `unavailable`. The vendored Simplex fixtures show it: `testdata/simplex/config-error` (exit 3) and `testdata/simplex/io-error` (exit 4) hold an `exit` file and no document; every other case holds both.
 - The writer of record is `simplex serve --out PATH`, which rewrites the file every interval (default 30s, well inside Vigil's 120s `stale_after`). The fallback is a timer that runs `simplex check --json --out PATH`.
 - Prometheus and Grafana are queried live and have no freshness bound; their state is `ok` or unreachable.
-- Vigil queries the secondary Prometheus on lathe only. The primary's liveness reaches it through a named query on the peer series.
+- Vigil queries the secondary Prometheus on the vantage host only. The primary's liveness reaches it through a named query on the peer series.
 
 ## 10. Versioning
 
@@ -229,7 +229,7 @@ Tests, by column: exit 0 is `TestPromTargetsJSON`, `TestPromQueryJSON`, `TestGra
 `vigil.overlay/v0` is the only place an address exists. It is YAML, strict, and never committed (the scrub fails the tree if one is tracked). It has two keys beyond `apiVersion`:
 
 - `backends[]`: `id` and `address`, keyed by the backend ids declared in config. An address is a scheme, a host, an optional port and optional path segments. Userinfo, a query, a fragment and any `.` or `..` segment are refused. Fixtures: `testdata/overlay/invalid/address-credentials.yaml`, `address-query.yaml` and `address-dot-segment.yaml`.
-- `hosts[]` (optional): each `{slug, instances[]}` maps the `instance` labels a backend reports onto one public slug. An instance is a host or `host:port` as Prometheus reports it, and it is matched exactly. A host with no instances, or an instance that is a path, is refused. Fixtures: `testdata/overlay/valid/hosts.yaml`, `testdata/overlay/invalid/host-empty-instances.yaml` and `host-instance-path.yaml`.
+- `hosts[]` (optional): each `{slug, instances[]}` maps the `instance` labels a backend reports onto one slug. An instance is a host or `host:port` as Prometheus reports it, and it is matched exactly. A host with no instances, or an instance that is a path, is refused. Fixtures: `testdata/overlay/valid/hosts.yaml`, `testdata/overlay/invalid/host-empty-instances.yaml` and `host-instance-path.yaml`.
 
 Config adds one optional key to a backend, `vantage`: the slug of the place the backend is queried from. It is carried in every `prom` result and in the backend's `sources[]` row, so a reader can tell which side of the mesh answered. Fixtures: `testdata/config/valid/vantage.yaml`, `testdata/config/invalid/backend-vantage-not-a-slug.yaml`.
 

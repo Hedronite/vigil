@@ -95,7 +95,7 @@ there is no free-form path over HTTP or on the CLI, and the host slug
 
 | Flag | Meaning |
 | --- | --- |
-| `--host SLUG` | fills `{{.host}}`; must be a mapped or public slug |
+| `--host SLUG` | fills `{{.host}}`; must be a slug the overlay's `hosts[]` defines |
 
 Placeholder rules, both exit 3 with no backend call:
 
