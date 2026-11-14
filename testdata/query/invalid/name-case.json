@@ -1,0 +1,8 @@
+{
+  "apiVersion": "vigil.query/v0",
+  "backend": "prom",
+  "vantage": "lathe",
+  "name": "UpByHost",
+  "evaluated_at": "2026-11-14T09:00:00Z",
+  "series": []
+}
