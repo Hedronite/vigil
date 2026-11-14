@@ -1,17 +1,48 @@
-# Vigil CLI (v0)
+# Vigil CLI (V1)
 
-One command surface, one document. `--json` prints the document alone on
-stdout; errors are one JSON line on stderr. The human tables are renderers of
-the same document — no command invents a second shape.
+One command surface, one document per command. `--json` prints the document
+alone on stdout; every failure prints one JSON line on stderr and nothing on
+stdout. The human tables are renderers of the same document — no command
+invents a second shape, and a table never prints a field the document lacks.
+
+The `--help` texts below are drafted from the command tree; they are
+refreshed from the real binary once the command wiring merges.
 
 ## Global flags
 
 | Flag | Meaning |
 | --- | --- |
+| `--config PATH` | path to the vigil.config/v0 file |
+| `--overlay PATH` | path to the vigil.overlay/v0 file (backend addresses) |
 | `--json` | print the document alone on stdout (no table, no decoration) |
 | `--now <RFC 3339>` | pin the clock; used by tests and deterministic renders |
 
-Errors from any command are one JSON line on stderr:
+`--help` output (draft, from the binary's command tree):
+
+```
+Vigil reads named backends (Prometheus, Grafana) through names in its
+config. No command takes a URL, a selector or PromQL.
+
+Flags:
+  --config string   path to the vigil.config/v0 file
+  --overlay string  path to the vigil.overlay/v0 file (backend addresses)
+  --json            print the document alone on stdout
+  --now string      pin the clock to an RFC 3339 time (tests and deterministic renders)
+
+Commands:
+  prom      Query the named Prometheus backend
+  grafana   Check the named Grafana backend
+  sources   List the configured backends and their reachability
+  version   Print the version, the commit and the Go runtime
+```
+
+A path value must be a path: a URL-shaped `--config` or `--overlay` value is
+a usage error (exit 3). A malformed `--now` is also exit 3.
+
+## Errors
+
+Every failure — usage errors included — is one `vigil.error/v0` JSON line on
+stderr:
 
 ```json
 {"apiVersion":"vigil.error/v0","error":{"code":"backend_unreachable"}}
@@ -19,40 +50,52 @@ Errors from any command are one JSON line on stderr:
 
 `code` is a stable machine code; `message` is optional human text and never
 carries a URL, a token or anything that distinguishes a missing credential
-from a wrong one. Codes seen on the wire include `unauthorized`,
-`not_found`, `method_not_allowed`, `payload_too_large`, `query_warnings`,
-`series_cap` and `backend_unreachable`. Startup and configuration failures
-print a plain line on stderr and exit 5 or 3; see the exit table in the
-README.
+from a wrong one. Codes on the V1 surface include `unreachable`, `timeout`,
+`body_cap`, `redirect_refused`, `http_status`, `series_cap`,
+`query_warnings`, `query_rejected`, `not_health`, `missing_host`,
+`unexpected_host` and `usage`. Stdout stays empty on every failure.
 
 ## vigil version (V0)
 
-Prints the binary version, the commit and the Go runtime. Available now.
+Prints the binary version, the commit and the Go runtime.
 
 ```
 $ vigil version
-vigil v0-dev (commit 1a2b3c4d5e6f, go1.27.3)
+vigil v0-dev (commit 1a2b3c4d5e6f, go1.27.4)
 ```
 
 ## vigil prom targets (V1)
 
-Lists the active scrape targets of the named prom backend. Columns, in order:
+Lists the active scrape targets of the named prom backend. Table columns, in
+order:
 
 | Column | Content |
 | --- | --- |
-| `TARGET` | scrape slug (the configured slug for the instance) |
-| `HEALTH` | the backend's own health for the target |
-| `LAST SCRAPE` | when the backend last scraped it |
+| `TARGET` | scrape slug: the overlay-mapped instance |
+| `JOB` | the job label when it has a publishable shape, `redacted` otherwise |
+| `HEALTH` | the backend's own health word: `up`, `down` or `unknown` |
+| `LAST_SCRAPE` | when the backend last scraped it; `-` when it never did |
 
-An instance Vigil cannot map to a slug prints as `unmapped`. The output never
-includes a scrape URL, a last error or discovered labels: addresses do not
-belong in CLI output.
+The header block above the table carries `BACKEND`, `VANTAGE` and
+`GENERATED_AT` from the document. An instance the overlay's `hosts[]` cannot
+map prints as `unmapped`. The decoder never reads a scrape URL, a last error
+or discovered labels, so an address in those fields cannot reach the output
+even by accident.
 
-## vigil prom query (V1)
+## vigil prom query <name> (V1)
 
-Runs one named query from `vigil.config/v0`. There is no free-form path over
-HTTP or on the CLI — the name is the only handle, and the host slug
+Runs one named query from `vigil.config/v0`. The name is the only handle:
+there is no free-form path over HTTP or on the CLI, and the host slug
 (`{{.host}}`) is the only template variable.
+
+| Flag | Meaning |
+| --- | --- |
+| `--host SLUG` | fills `{{.host}}`; must be a mapped or public slug |
+
+Placeholder rules, both exit 3 with no backend call:
+
+- the expr has `{{.host}}` and `--host` is absent → `missing_host`;
+- `--host` is given and the expr has no placeholder → `unexpected_host`.
 
 Bounds the config enforces, so the docs can promise them:
 
@@ -61,64 +104,65 @@ Bounds the config enforces, so the docs can promise them:
 - a series cap (default 200; the request asks for one more than the cap) —
   more results fail with `series_cap`, never a truncated answer;
 - any warning the backend reports fails with `query_warnings` — never a
-  partial answer presented as whole.
+  partial answer presented as whole;
+- a query the backend rejects (`bad_data` on a configured expr) is
+  `query_rejected` and exits 3.
 
-Every result carries the `backend` and the `vantage` that answered. Vigil
-never fails over silently: if the configured backend cannot be reached the
-command exits 4 and says so.
-
-## vigil grafana health (V1)
-
-Calls `GET /api/health` on the named grafana backend. A login page is not
-health. Grafana is a source, never an authority: when it is down,
-`sources[]` shows it down and nothing else moves — not `overall`, not the
-chip, not the exit code of a summary.
-
-## vigil sources (V1)
-
-Lists the configured authorities, backends and informational sources with
-their reachability and the last time each was read. Same columns as the
-`sources[]` table above.
-
-## vigil simplex summary (V2)
-
-Builds `vigil.summary/v0` from the configured authorities and renders it.
-Default output is the human table; `--json` prints the document alone. The
-bytes `--json` prints are the same bytes `vigil serve` serves — one document,
-two renderers, test-pinned.
+An empty result is not an error: exit 0 with `series: []`.
 
 Table columns, in order:
 
-| Table | Columns |
+| Column | Content |
 | --- | --- |
-| header | `OVERALL`, `AGE` (of `generated_at`) |
-| verdicts | `SOURCE`, `STATE`, `SEVERITY`, `AGE`, `REASONS` |
-| hosts | `HOST`, `SEVERITY`, `REASONS` |
-| sources | `SOURCE`, `KIND`, `STATE`, `AGE`, `DETAIL` |
+| `HOST` | the series' mapped host slug |
+| `JOB` | the publishable job label; the column exists only when some series carries one |
+| `VALUE` | the sample exactly as Prometheus reports it: a decimal, an exponent, `NaN` or an infinity |
 
-Reading the table:
+The header block carries `BACKEND`, `VANTAGE`, `NAME`, `HOST` (only when the
+query was run for one host) and `EVALUATED_AT`. Every result is answered by
+the backend and vantage the config named; Vigil never fails over silently —
+if the configured backend cannot be reached the command exits 4 and says so.
 
-- The `SOURCE` column is the authority's name (`simplex`, later `augur`);
-  that is how a reader tells "Simplex says" from "Augur says". A verdict whose
-  document could not be read still appears, as `unavailable` with no
-  severity.
-- `STATE` is `ok`, `stale` or `unavailable`. A stale row shows its age and is
-  never presented as current; an unavailable row shows `unavailable`. Neither
-  ever shows the last GREEN as current.
-- `SEVERITY` in the verdicts table is the severity as published by the
-  authority; `overall` carries the capped combination. When they differ, the
-  age column and the `REASONS` column say why: verdict reasons are Vigil's
-  own codes, such as `authority_unavailable` (the authority could not be
-  read) and `source_stale` (the document is older than the freshness bound).
-  The cause of an unreadable source — `schema_major`, `source_unavailable` —
-  shows in that source's `DETAIL` cell, as its `detail_code`.
-- `hosts[]` comes from Simplex alone; a clean host may have an empty reasons
-  cell.
-- Signals do not appear here: the summary has no signals field by contract.
-  They are read only from `GET /v0/signals` (see `vigil serve`), where their
-  severity vocabulary is `info` and `notice` — deliberately not
-  GREEN/YELLOW/RED — and they never touch `overall`, the chip or the exit
-  code.
+## vigil grafana health (V1)
+
+Calls `GET /api/health` on the named grafana backend with a 2s timeout, a
+16 KiB body cap and no redirects. Healthy means a 200 whose body reports the
+database ok; a login page or any other non-health body is `not_health`, and
+a non-200 is `http_status`.
+
+The document is printed only when the backend is healthy: an unhealthy check
+is exit 4 with one error line on stderr and empty stdout. Grafana is a
+source, never an authority — when it is down, nothing else moves: not
+`overall`, not the chip, not any other command.
+
+Output (a key-value block; the `DETAIL_CODE` line appears only when the
+document carries the field):
+
+```
+BACKEND     grafana
+STATE       ok
+CHECKED_AT  2026-11-14T09:00:00Z
+```
+
+## vigil sources (V1)
+
+Lists one row per configured backend with its reachability. Table columns,
+in order:
+
+| Column | Content |
+| --- | --- |
+| `ID` | the backend id from the config |
+| `KIND` | `prom` or `grafana` |
+| `STATE` | `ok`, `stale` or `unavailable` |
+| `OBSERVED_AT` | when the backend was last checked; `-` when never |
+| `LAST_OK` | the last time the check succeeded; `-` when it never has |
+| `DETAIL_CODE` | why a row is down; the column exists only when some row carries one |
+| `VANTAGE` | the prom vantage that answered; the column exists only when some row carries one |
+
+A prom row is checked through `/-/ready` and carries its vantage; a grafana
+row uses the health check. Rows are data: a down backend is a row state, and
+the command still exits 0. `last_ok` stays null in V1 — no state is kept
+between runs. Authority rows arrive at V2 and informational rows at V5.
 
 ## vigil serve (V3)
 
@@ -159,7 +203,8 @@ them.
 ## Configuration
 
 Commands read `vigil.config/v0` (strict: unknown keys are errors). See
-`example.config.yaml` for a valid starting point and `example.overlay.yaml`
-for where addresses live — an overlay is never committed; the tracked example
-uses only documentation placeholders. Token files are referenced by
-environment variable or path, never a value.
+`example.config.yaml` for a valid starting point — it shows the optional
+`vantage` label on the prom backend — and `example.overlay.yaml` for where
+addresses and the `hosts[]` instance mapping live. An overlay is never
+committed; the tracked example uses only documentation placeholders. Token
+files are referenced by environment variable or path, never a value.
