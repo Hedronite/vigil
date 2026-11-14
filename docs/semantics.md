@@ -95,6 +95,8 @@ There is no `/v0/query`, no `/v0/queries`, and no route that takes a URL, a sele
 - **No silent failover.** Every result carries `backend` and `vantage`. If the configured backend cannot be reached the command exits 4 and says so; it never asks another.
 - **Output labels.** Only `host` and `job` are carried from the returned labels, and only in their scrubbed form (section 13).
 
+Tests: `internal/promclient` `TestQueryRules` has one case for each rule above (a missing host, an unexpected host, an unknown host, a plain answer, an empty answer, a dotted sample value, a value that is not a number, the special values, the series cap, warnings, `bad_data`, a backend timeout, a refused redirect, the ignored proxy variables, the body cap and an unset backend). Recorded answers live in `internal/promclient/testdata/prom/`: `query-plain.json`, `query-empty.json`, `query-special-values.json`, `query-series-cap.json`, `query-warnings.json`, `query-bad-data.json` and `query-timeout.json`. The command layer is pinned by `TestPromQueryJSON` and `TestPromQueryHostRules` in `cmd/vigil`.
+
 ## 8. Signals
 
 A `vigil.signal/v0` is ephemeral and arrives only by authenticated POST.
@@ -142,23 +144,25 @@ The top-level keys are:
 
 Named backends and named queries come from config only. No config field takes a URL, an address or a selector: a backend's address lives in the off-repo overlay (`vigil.overlay/v0`), keyed by the backend ids declared here. A locator (`path_ref`, a token file) is an environment reference (`env:NAME`) or an absolute path with no traversal. Fixtures for the refusals: `testdata/config/invalid/no-authorities.yaml`, `authority-unknown.yaml`, `query-url.yaml`, `path-ref-traversal.yaml`.
 
+Tests: `internal/config` `TestConfigFixtures`, `TestRefusals` (a duplicate backend id and a duplicate query name among them), `TestListenSpellings`, `TestDefaults` and `TestBind`, and `FuzzConfig`. In `cmd/vigil`, `TestWildcardListenIsStartupFailure` shows a wildcard listen stops a backend command with exit 5 before any call, and `TestConfigErrorsDoNotEchoValues` and `TestConfigFailureNeverEchoesAHostileField` show the loader's own text, which can quote a value, never reaches stderr.
+
 ## 12. Backends and the bounded client
 
-A backend is a named thing Vigil asks questions of: Prometheus or Grafana at V1. Its name and kind come from config; its address comes from the off-repo overlay (section 17). All HTTP to a backend goes through `internal/httpx`, one client per backend, and nothing else in the tree may import `net/http`. The rules live in that package so no caller can loosen them:
+A backend is a named thing Vigil asks questions of: Prometheus or Grafana at V1. Its name and kind come from config; its address comes from the off-repo overlay (section 17). All HTTP to a backend goes through `internal/httpx`, and nothing else in the tree may import `net/http`. There is one client per backend id for the life of the process (`httpx.ForBackend`), so every caller of a backend shares one limiter; the first configuration for an id wins, and a configuration that fails to build is not remembered. The rules live in that package so no caller can loosen them:
 
 - **GET only.** The client has no method parameter and sends no body. The URL is the overlay's base address plus a path fixed in code plus encoded parameters; a caller cannot hand in a URL. A path with a query, a fragment, a dot segment or any character outside the unreserved set is refused.
 - **No redirect is followed.** Any 3xx answer is the error `redirect_refused`, and the target of the redirect is never contacted.
 - **No proxy.** The transport has no proxy function, so `HTTP_PROXY`, `HTTPS_PROXY` and `NO_PROXY` are ignored.
 - **A deadline on every call.** 5s by default, 10s at most. It covers waiting for a slot, the call and the body read, and passing it is `timeout`.
 - **A body cap on every call.** 8 MiB for Prometheus, 16 KiB for Grafana. A body over the cap is `body_cap`, whether it declared its length, streamed without one, or arrived compressed (the cap applies after decompression).
-- **Two calls in flight per backend.** A third waits for a slot, inside its own deadline.
+- **Two calls in flight per backend.** A third waits for a slot, inside its own deadline. The limit belongs to the backend id, not to a client value: a command that built a client per call would get a limiter per call, so `ForBackend` hands every caller the same one.
 - **Errors carry a code and nothing else.** The detail code is `unreachable`, `timeout`, `body_cap`, `redirect_refused` or `http_status`. The text of the underlying error holds the URL, so it is dropped.
-
-Tests: `internal/httpx` (`TestRedirectsRefused`, `TestProxyEnvironmentIgnored` with every proxy variable set, `TestBodyCap`, `TestBodyCapWithoutContentLength`, `TestBodyCapStopsReading`, `TestBodyCapAppliesAfterDecompression`, `TestDeadlineOnSlowHeaders`, `TestDeadlineOnSlowBody`, `TestTwoInFlight`, `TestDeadlineCoversWaitingForSlot`, `TestInvalidPaths`, `TestErrorsNeverCarryAddresses`). The proxy test reaches a non-loopback name through a dial hook, because the standard library never proxies loopback and a test against loopback would pass for the wrong reason.
 
 Two guards keep the rule from eroding. depguard rejects `net/http`, subpackages included, in every non-test file outside `internal/httpx`; `scripts/depguard-selftest.sh` plants each case. `TestNoListenerBeforeV3` parses every non-test Go file and fails on a listener or a server, so V1 can dial out and cannot listen. V3 relaxes that test on purpose.
 
 The V1 detail codes live in `internal/reasons.Detail`: `unreachable`, `timeout`, `body_cap`, `redirect_refused`, `http_status`, `series_cap`, `query_warnings`, `query_rejected`, `not_health`, `no_series`, `missing_host` and `unexpected_host`. They appear in `sources[].detail_code` and as the `code` of a `vigil.error/v0`. They are never an address, a URL or text copied from a backend.
+
+Tests: `internal/httpx` `TestRedirectsRefused`, `TestProxyEnvironmentIgnored` (every proxy variable set, and a non-loopback logical host, because the standard library never proxies loopback), `TestBodyCap`, `TestBodyCapWithoutContentLength`, `TestBodyCapRejectsDeclaredLengthEarly`, `TestBodyCapStopsReading`, `TestBodyCapAppliesAfterDecompression`, `TestDeadlineOnSlowHeaders`, `TestDeadlineOnSlowBody`, `TestClientDefaultDeadline`, `TestTwoInFlight`, `TestDeadlineCoversWaitingForSlot`, `TestSlotReleasedAfterFailure`, `TestInvalidBase`, `TestInvalidPaths`, `TestErrorsNeverCarryAddresses` and `TestCeilings`. The shared limiter has its own: `TestForBackendSharesOneSemaphorePerID`, `TestForBackendDoesNotShareAcrossIDs`, `TestForBackendFirstConfigWins`, `TestForBackendIsSafeForConcurrentUse`, `TestForBackendDoesNotRememberFailures` and `TestForBackendKeepsTheClientRules`. Each backend package proves it uses the shared limiter with a `TestInFlightBound` of its own (`internal/promclient`, `internal/grafana`, `internal/sources`): three concurrent calls reach the wire two at a time. `FuzzBase` and `FuzzPath` fuzz the address and path rules.
 
 ## 13. What `prom targets` and `prom query` may print
 
@@ -171,6 +175,8 @@ An address never reaches stdout. A Prometheus target carries several (`scrapeUrl
 - `prom query` carries `host` and `job` from the returned labels, by the same two rules, and a sample `value` that must be a number as Prometheus reports it (a decimal, an exponent, `NaN` or an infinity). A label other than those two is dropped.
 
 The schemas back the rules from the other side. `vigil.targets/v0` and `vigil.query/v0` give `host` the slug pattern and `value` the number pattern, so a document that carries an address or a name in those fields does not validate. Fixtures: `testdata/targets/invalid/job-address.json`, `testdata/query/invalid/value-address.json`, `value-name.json` and `value-url.json`.
+
+Tests: `internal/promclient` `TestTargetsMapping` and `TestTargetsMappingRules` plant a `.ts.net` name and an address-shaped instance in the answer and check that neither reaches the document, with the recorded answers `internal/promclient/testdata/prom/targets-mixed.json`, `targets-empty.json` and `targets-not-success.json`. `TestQueryRules` covers the query labels and values. `internal/schematest` `TestV1DocumentDrift`, `TestQueryValueShape` and `TestFixturesValidateAsLabelled` pin the schemas, and `internal/render` `TestTablesPrintOnlyWhatTheDocumentHas` pins that a table never prints a field the document lacks. In `cmd/vigil`, `TestPromTargetsJSON` and `TestPromTargetsTable` check the real stdout for an address, a `scrapeUrl`, a `lastError` and a `discoveredLabels` field.
 
 ## 14. Grafana health
 
@@ -188,6 +194,8 @@ The schemas back the rules from the other side. `vigil.targets/v0` and `vigil.qu
 
 A login page is not health. Grafana is a source, never an authority. The command fails when Grafana is not healthy, because that is the question it was asked. `vigil sources` asks the same question as part of a listing, so there the unhealthy state is data: the Grafana row says `unavailable` with its detail code, and the command still exits 0. Nothing about Grafana moves `overall`, the chip or the exit code of a summary. Fixture: `grafana-down`.
 
+Tests: `internal/grafana` `TestHealth` (healthy, a database that is down, a login page, an empty body, a server error and a missing path, from `internal/grafana/testdata/grafana/healthy.json`, `db-down.json` and `login-page.txt`) and `TestHealthFailures` (a refused redirect, an oversize body, a slow backend, no address and no backend configured). In `cmd/vigil`, `TestGrafanaHealthHealthy`, `TestGrafanaHealthUnhealthyIsExit4` (every row of the table above, in both `--json` and table form) and `TestGrafanaHealthBackendSelection` (no Grafana backend and two of them are exit 3 before any call).
+
 ## 15. The CLI contract
 
 Six commands exist: `version`, `prom targets`, `prom query`, `grafana health` and `sources`, with `help` generated by the framework. The global flags are `--config PATH`, `--overlay PATH`, `--json` and `--now RFC3339`.
@@ -199,7 +207,7 @@ Six commands exist: `version`, `prom targets`, `prom query`, `grafana health` an
 - **No command takes a URL, a selector or PromQL.** A positional argument to a command that takes none, a query name or `--host` of the wrong shape, and a URL in `--config` or `--overlay` are exit 3. Test: `TestURLShapedArgumentsExitUsage`.
 - **Asking for help is a success.** `--help` and `vigil help` print to stdout and exit 0. Running `vigil` or a command group with no subcommand is a usage error.
 
-Tests: `cmd/vigil` (`TestUsageErrorsNeverExitAsVerdict`, `TestHandlerErrorsMapToExitAndCode`, `TestUnknownHandlerErrorIsInternalAndSilent`, `TestPanicExitsInternalWithOneJSONLine`, `TestHelpIsASuccess`, `TestCommandSetIsExactlyTheSix`). Each validates the stderr line against `schema/vigil.error.v0.schema.json`.
+Tests: `cmd/vigil` `TestUsageErrorsNeverExitAsVerdict`, `TestURLShapedArgumentsExitUsage`, `TestValidArgumentsReachTheHandler`, `TestHandlerErrorsMapToExitAndCode`, `TestUnknownHandlerErrorIsInternalAndSilent`, `TestPanicExitsInternalWithOneJSONLine`, `TestHelpIsASuccess`, `TestHelpAndErrorsDoNotEchoArguments` and `TestCommandSetIsExactlyTheSix`. Each validates the stderr line against `schema/vigil.error.v0.schema.json`. `FuzzCLIArgs` feeds arbitrary arguments to the command tree and checks what each handler receives: a success hands over only a query name and a host slug of the right shape and file names that are not URLs, a usage error never runs a handler, and every error line is one of the fixed texts. `TestPromTargetsJSON`, `TestPromQueryJSON`, `TestGrafanaHealthHealthy` and `TestSourcesRowsAreData` validate the real stdout against the document schemas, and run twice with `--now` to show the bytes are the same; `TestNowDefaultsToTheClock` shows the clock is used when `--now` is absent.
 
 ## 16. Exit codes for the V1 commands
 
@@ -214,6 +222,8 @@ The table in section 5 holds. Per command, these are the answers:
 
 A wildcard `listen` in config is exit 5 for any command that loads the config (section 6). A recovered panic is exit 6. No error path exits 0, 1 or 2: a backend command never produces a verdict.
 
+Tests, by column: exit 0 is `TestPromTargetsJSON`, `TestPromQueryJSON`, `TestGrafanaHealthHealthy` and `TestSourcesRowsAreData`. Exit 3 is `TestPromQueryHostRules` (`missing_host`, `unexpected_host`, `unknown_host`, `unknown_query`), `TestBackendCommandsNeedConfigAndOverlay` and `TestGrafanaHealthBackendSelection`; `query_rejected` is the `bad_data` case in `internal/promclient` `TestQueryRules`. Exit 4 is `TestUnreachableBackendIsExit4`, `TestBackendRedirectIsRefused` and `TestGrafanaHealthUnhealthyIsExit4`. Exit 5 is `TestWildcardListenIsStartupFailure`. Exit 6 is `TestPanicExitsInternalWithOneJSONLine`. That `sources` never exits 4, whatever the backends do, is `TestSourcesRowsAreData`.
+
 ## 17. The overlay
 
 `vigil.overlay/v0` is the only place an address exists. It is YAML, strict, and never committed (the scrub fails the tree if one is tracked). It has two keys beyond `apiVersion`:
@@ -223,7 +233,22 @@ A wildcard `listen` in config is exit 5 for any command that loads the config (s
 
 Config adds one optional key to a backend, `vantage`: the slug of the place the backend is queried from. It is carried in every `prom` result and in the backend's `sources[]` row, so a reader can tell which side of the mesh answered. Fixtures: `testdata/config/valid/vantage.yaml`, `testdata/config/invalid/backend-vantage-not-a-slug.yaml`.
 
-## 18. Fixture index
+Tests: `internal/config` `TestOverlayFixtures`, `TestOverlayRules` (a duplicate slug and an instance that already maps to another slug among them) and `TestBind`, which refuses an overlay that names a backend the config never declared. `cmd/vigil` `TestOverlayMustMatchTheConfig` shows the same refusal stops a command before any call. Fixtures: `testdata/overlay/valid/minimal.yaml` and `testdata/overlay/valid/hosts.yaml`.
+
+## 18. The sources listing
+
+`vigil sources` lists the configured backends and whether each one answers. It prints `vigil.sources/v0`: one row for each backend in `backends[]`, in config order, and nothing else.
+
+- **A row is the summary's own source shape.** `vigil.sources/v0` references `$defs/source` in the summary schema instead of copying it, so the two cannot drift: `id`, `kind`, `state`, `observed_at`, `last_ok`, an optional `detail_code` and, for a Prometheus backend, `vantage`.
+- **How a row is checked.** A Prometheus backend is asked `GET /-/ready`; a Grafana backend is asked the health question of section 14. A healthy answer is `ok` with no `detail_code`. Anything else is `unavailable` with the code that says why: `unreachable`, `timeout`, `body_cap`, `redirect_refused`, `http_status`, `not_health` or `no_address` when the overlay has no address for the backend.
+- **A down backend is a row, not a failure.** The command still exits 0, because the question it answers is what is configured and what answers. It never exits 4 (section 16).
+- **`last_ok` is null in V1.** Vigil keeps no state between runs, so it cannot say when a backend last answered. `observed_at` is the time of this check, from `--now` when set.
+- **Authority and informational rows come later.** Authority rows (Simplex, Augur) arrive with V2 and the informational sources (Scry, Cubit) with V5. V1 invents none: a document with an authority row at this version does not come from this command.
+- **Sources move nothing else.** A row's state is data. It does not change `overall`, the chip or any exit code (section 3).
+
+Tests: `internal/sources` `TestSourcesRows` (both healthy, a backend down as a row state, a missing address and no backends as an empty table) and `TestInFlightBound`. Fixtures: `testdata/sources/valid/backends.json`, `testdata/sources/valid/empty.json` and the invalid cases beside them. `cmd/vigil` `TestSourcesRowsAreData` runs four mixes of up and down backends, checks each output against `vigil.sources/v0`, `last_ok`, the vantage and the absence of any address, and `TestSourcesTable` checks the table. Goldens: `testdata/render/sources-backends.txt` and `sources-empty.txt`.
+
+## 19. Fixture index
 
 `testdata/summary/<case>/` holds `document.json` and `expected_exit`. No golden carries an `augur{}` block: its content is frozen when Augur's fields land, and Augur's status rides in `verdicts[]` and `sources[]`.
 
@@ -245,3 +270,19 @@ The last three are built on `simplex-green` and prove that Grafana, Scry and a s
 `schema-major-mismatch`: the Simplex verdict is `unavailable` with severity null, `observed_at` null and reason `authority_unavailable`; its `sources[]` entry has `detail_code` `schema_major`; Augur is `ok` GREEN beside it; `overall` is YELLOW.
 
 `signal-present` cannot show a signal inside the summary, because the summary has no signals field by contract. Its `document.json` is therefore byte-identical to `simplex-green`, and the directory also holds `signal.json`, a `vigil.signal/v0` document. The assertion is that the summary built with that signal present equals the summary built without it.
+
+### V1 fixture directories
+
+Each directory holds `valid/` and `invalid/` documents, validated against the schema named in the table by `internal/schematest` (`TestFixturesValidateAsLabelled`), and a mislabelled fixture fails it.
+
+| Directory | Schema | What the invalid cases pin |
+| --- | --- | --- |
+| `testdata/targets/` | `vigil.targets/v0` | an upper-case health word, an upper-case host, an address in `job` |
+| `testdata/query/` | `vigil.query/v0` | a missing `value`, an upper-case name, a numeric `value`, and an address, a name or a URL in `value` |
+| `testdata/health/` | `vigil.health/v0` | a spaced `detail_code`, a missing `checked_at`, a verdict word as `state` |
+| `testdata/sources/` | `vigil.sources/v0` | a missing `sources`, an unknown `kind`, a verdict word as `state` |
+| `testdata/overlay/` | `vigil.overlay/v0` | credentials, a query and a dot segment in an address; a host with no instances; an instance that is a path; an unknown key; a wrong major |
+| `testdata/config/` | `vigil.config/v0` | the refusals of section 11, including a vantage that is not a slug and a second template variable |
+| `testdata/render/` | none | the table goldens for the four documents, pinned by `internal/render` `TestRenderGoldens` |
+
+Recorded backend answers are not fixtures of Vigil's documents: they sit beside the code that decodes them, under `internal/promclient/testdata/prom/` and `internal/grafana/testdata/grafana/`, and use slugs and `example.invalid` only.
