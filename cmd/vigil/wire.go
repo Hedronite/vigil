@@ -8,19 +8,22 @@ import (
 
 	"github.com/Hedronite/vigil/internal/config"
 	"github.com/Hedronite/vigil/internal/exitcode"
+	"github.com/Hedronite/vigil/internal/grafana"
 	"github.com/Hedronite/vigil/internal/promclient"
 	"github.com/Hedronite/vigil/internal/render"
+	"github.com/Hedronite/vigil/internal/sources"
 )
 
 // liveHandlers is the table the binary runs. Each backend command is a thin
 // closure: load the config and the overlay, call the backend package with the
-// pinned clock, print the document. A command whose backend has not landed is
-// still the stub.
+// pinned clock, print the document.
 func liveHandlers() Handlers {
-	h := defaultHandlers()
-	h.PromTargets = promTargets
-	h.PromQuery = promQuery
-	return h
+	return Handlers{
+		PromTargets:   promTargets,
+		PromQuery:     promQuery,
+		GrafanaHealth: grafanaHealth,
+		Sources:       listSources,
+	}
 }
 
 func promTargets(ctx context.Context, inv Invocation) error {
@@ -45,6 +48,35 @@ func promQuery(ctx context.Context, inv Invocation) error {
 		return err
 	}
 	return printQuery(inv, doc)
+}
+
+// grafanaHealth prints vigil.health/v0 when Grafana is healthy. Anything else
+// comes back from the backend package as an error with its detail code, so the
+// command prints one error line, exits 4 and prints nothing on stdout.
+func grafanaHealth(ctx context.Context, inv Invocation) error {
+	cfg, ov, err := loadDocuments(inv)
+	if err != nil {
+		return err
+	}
+	doc, err := grafana.Health(ctx, cfg, ov, clock(inv))
+	if err != nil {
+		return err
+	}
+	return printHealth(inv, doc)
+}
+
+// listSources prints vigil.sources/v0. A backend that is down is a row state,
+// not a failure, so this command does not exit 4.
+func listSources(ctx context.Context, inv Invocation) error {
+	cfg, ov, err := loadDocuments(inv)
+	if err != nil {
+		return err
+	}
+	doc, err := sources.Sources(ctx, cfg, ov, clock(inv))
+	if err != nil {
+		return err
+	}
+	return printSources(inv, doc)
 }
 
 // clock is the pinned time from --now, or the real one.
@@ -116,4 +148,18 @@ func printQuery(inv Invocation, doc *promclient.QueryDoc) error {
 		return render.JSON(inv.Stdout, doc)
 	}
 	return render.Query(inv.Stdout, doc)
+}
+
+func printHealth(inv Invocation, doc *grafana.HealthDoc) error {
+	if inv.JSON {
+		return render.JSON(inv.Stdout, doc)
+	}
+	return render.Health(inv.Stdout, doc)
+}
+
+func printSources(inv Invocation, doc *sources.Doc) error {
+	if inv.JSON {
+		return render.JSON(inv.Stdout, doc)
+	}
+	return render.Sources(inv.Stdout, doc)
 }
