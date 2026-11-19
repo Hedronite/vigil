@@ -1,0 +1,40 @@
+{
+  "build": {
+    "cgo_enabled": true,
+    "goarch": "amd64",
+    "goos": "linux",
+    "tags": []
+  },
+  "judged_laws": 0,
+  "ledger": {
+    "findings": {
+      "errcheck": {
+        "cmd/vigil/cli.go": 3,
+        "cmd/vigil/main_test.go": 4,
+        "cmd/vigil/nolistener_test.go": 1,
+        "cmd/vigil/wire_grafana_test.go": 2,
+        "cmd/vigil/wire_test.go": 3,
+        "internal/config/config_test.go": 3,
+        "internal/exitcode/error_test.go": 1,
+        "internal/exitcode/exitcode_test.go": 1,
+        "internal/exitcode/semantics_names_test.go": 1,
+        "internal/grafana/grafana_test.go": 4,
+        "internal/httpx/httpx_test.go": 15,
+        "internal/promclient/promclient_test.go": 6,
+        "internal/render/render_test.go": 10,
+        "internal/schematest/schematest_test.go": 8,
+        "internal/sources/sources_test.go": 2
+      }
+    },
+    "functions": {
+      "github.com/Hedronite/vigil/cmd/vigil.newRoot": 14,
+      "github.com/Hedronite/vigil/internal/config.Config.validate": 41.88184531464335,
+      "github.com/Hedronite/vigil/internal/config.Overlay.validate": 12.144,
+      "github.com/Hedronite/vigil/internal/config.checkAddress": 11.968,
+      "github.com/Hedronite/vigil/internal/httpx.Client.Get": 14.030955718318758,
+      "github.com/Hedronite/vigil/internal/httpx.parseBase": 12,
+      "github.com/Hedronite/vigil/internal/httpx.validPath": 14,
+      "github.com/Hedronite/vigil/internal/promclient.Query": 23.085848234410218
+    }
+  }
+}
