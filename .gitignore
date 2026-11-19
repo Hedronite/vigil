@@ -22,3 +22,11 @@ coverage.txt
 .idea/
 .vscode/
 *.swp
+
+# go-tops:begin (written by gotops init; edit outside these lines)
+.go-tops/*
+!.go-tops/baseline.json
+!.go-tops/acks.yaml
+!.go-tops/survivors.yaml
+!.go-tops/golangci.yml
+# go-tops:end

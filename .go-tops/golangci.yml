@@ -1,0 +1,34 @@
+# The lint config of the kit's hygiene layer (GO_TOPS.md §4.1, §8.1), read through
+# gates.hygiene.golangci_lint.config. The repository's own .golangci.yml is not
+# read by the gate and is never written or changed by gotops init: the gate counts
+# findings under these rules, and the repository's own lint job keeps its own. The
+# errcheck settings match the law pass. Paths in the findings are relative to the
+# module (gomod), whatever the directory of this file or the one the gate runs in:
+# an anchored exclusion applies only under gomod.
+version: "2"
+
+run:
+  relative-path-mode: gomod
+
+linters:
+  default: standard
+  enable:
+    - depguard
+  settings:
+    depguard:
+      rules:
+        main:
+          deny:
+            - pkg: io/ioutil
+              desc: deprecated since Go 1.16; use os and io
+            - pkg: github.com/pkg/errors
+              desc: archived; use errors and fmt.Errorf with %w
+    errcheck:
+      check-blank: true
+      check-type-assertions: true
+      exclude-functions:
+        - (io.ReadCloser).Close
+
+formatters:
+  enable:
+    - gofmt
