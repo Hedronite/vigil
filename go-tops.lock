@@ -1,0 +1,24 @@
+# Pins for the Go toolchain and the downloaded binaries (GO_TOPS.md §10).
+# Written by gotops init from the kit's pins; change it with a reviewed gotops lock --update.
+protocol: "0.4.4"
+toolchain: go1.27.4
+
+trust:
+  mode: checksum
+  note: archive SHA-256 values copied from the upstream release checksum file; executable SHA-256 values computed from those verified archives
+
+binaries:
+  - name: golangci-lint
+    version: "2.15.0"
+    url: https://github.com/golangci/golangci-lint/releases/download/v{version}/golangci-lint-{version}-{os}-{arch}.tar.gz
+    extract: golangci-lint-{version}-{os}-{arch}/golangci-lint
+    sha256:
+      darwin/arm64: d1e409481a8ca846c4bc97e781eb5cb1bd5c23353a0b3977a1cbda1b1b6447d5
+      darwin/amd64: 767b899a28285e88ded2823d5dcc4bc5ef681173eb2d80f029a7b17ee4ece3b8
+      linux/amd64: 9b7fe6a6bf6334b98decf8d86b11415ea7889afdabdd1959fdce23af2a9ebcea
+      linux/arm64: b4d8f17068b35ee6060cc2f69a16fb48740d706fbba81661c318649c114a6998
+    executable_sha256:
+      darwin/arm64: 71b89744ef6dd92dad9026b70489d1ad660da79ef90dfb5aabe995d916bec8a9
+      darwin/amd64: e04962742507a5f37a4002a7a8b2b549f6864f17807eb5d534d947f6311a051f
+      linux/amd64: d9af4564c05beb2f5e130119aec45e5e89d28e5017d558d3ca382659f2427894
+      linux/arm64: 14680d7674eb1fed0405446670e15dcffb74e979ef0dcd41f998c088fd6babfb

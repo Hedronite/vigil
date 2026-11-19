@@ -1,0 +1,10 @@
+# The files that can weaken the Go-TOPS gate (GO_TOPS.md §11). An edit to any
+# of them is a change to the gate and needs the owner's review.
+# GitHub ignores a line whose owner lacks write access: the CODEOWNERS errors
+# API must return {"errors": []} before this file is a real gate.
+
+/go-tops.yaml                    @VirtualMachinist
+/go-tops.lock                    @VirtualMachinist
+/.go-tops/                       @VirtualMachinist
+/tools/                          @VirtualMachinist
+/.github/workflows/go-tops.yml   @VirtualMachinist
