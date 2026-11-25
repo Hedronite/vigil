@@ -493,3 +493,55 @@ func FuzzConfig(f *testing.F) {
 		}
 	})
 }
+
+func TestConfigDeclaration(t *testing.T) {
+	dir := t.TempDir()
+	digest := "sha256:" + strings.Repeat("b2", 32)
+	cfgBody := func(line string) string {
+		return "apiVersion: vigil.config/v0\n" + line + "authorities:\n  - id: simplex\n    path_ref: env:VIGIL_SIMPLEX_PATH\n"
+	}
+
+	c, err := config.Load(writeFile(t, dir, "valid.yaml", cfgBody("declaration: "+digest+"\n")))
+	if err != nil {
+		t.Fatalf("valid declaration rejected: %v", err)
+	}
+	if c.Declaration == nil || *c.Declaration != digest {
+		t.Fatalf("Declaration = %v, want %q", c.Declaration, digest)
+	}
+
+	for _, tc := range []struct {
+		name, line string
+	}{
+		{"omitted", ""},
+		{"null", "declaration: null\n"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c, err := config.Load(writeFile(t, dir, tc.name+".yaml", cfgBody(tc.line)))
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if c.Declaration != nil {
+				t.Fatalf("Declaration = %q, want nil", *c.Declaration)
+			}
+		})
+	}
+
+	for _, tc := range []struct {
+		name, line string
+	}{
+		{"empty string", "declaration: \"\"\n"},
+		{"short hex", "declaration: sha256:abcd\n"},
+		{"uppercase", "declaration: sha256:" + strings.Repeat("AB", 32) + "\n"},
+		{"integer", "declaration: 123\n"},
+	} {
+		t.Run("invalid "+tc.name, func(t *testing.T) {
+			_, err := config.Load(writeFile(t, dir, "bad-"+strings.ReplaceAll(tc.name, " ", "-")+".yaml", cfgBody(tc.line)))
+			if err == nil {
+				t.Fatal("expected rejection")
+			}
+			if got := codeOf(t, err); got != exitcode.Usage {
+				t.Fatalf("code = %d, want %d", got, exitcode.Usage)
+			}
+		})
+	}
+}

@@ -69,6 +69,7 @@ func startupErr(file, field, format string, a ...any) *Error {
 // Config is vigil.config/v0 with defaults applied.
 type Config struct {
 	APIVersion  string      `yaml:"apiVersion"`
+	Declaration *string     `yaml:"declaration"`
 	Listen      string      `yaml:"listen"`
 	Backends    []Backend   `yaml:"backends"`
 	Authorities []Authority `yaml:"authorities"`
@@ -144,9 +145,10 @@ type OverlayHost struct {
 }
 
 var (
-	slugPattern     = regexp.MustCompile(`^[a-z][a-z0-9-]{0,31}$`)
-	durationPattern = regexp.MustCompile(`^[1-9][0-9]{0,3}s$`)
-	timeoutPattern  = regexp.MustCompile(`^([1-9]|10)s$`)
+	slugPattern        = regexp.MustCompile(`^[a-z][a-z0-9-]{0,31}$`)
+	declarationPattern = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
+	durationPattern    = regexp.MustCompile(`^[1-9][0-9]{0,3}s$`)
+	timeoutPattern     = regexp.MustCompile(`^([1-9]|10)s$`)
 	// exprPattern permits braces only as the literal {{.host}}; a label
 	// selector such as up{job="node"} still passes.
 	exprPattern     = regexp.MustCompile(`^([^{]|\{[^{]|\{\{\.host\}\}|\{$)*$`)
@@ -177,6 +179,9 @@ func Load(path string) (*Config, error) {
 func (c *Config) validate() error {
 	if c.APIVersion != ConfigMajor {
 		return usageErr(c.file, "apiVersion", "want %q, got %q", ConfigMajor, c.APIVersion)
+	}
+	if err := c.checkDeclaration(); err != nil {
+		return err
 	}
 	if c.Listen == "" {
 		c.Listen = DefaultListen
@@ -297,6 +302,14 @@ func (c *Config) validate() error {
 				return err
 			}
 		}
+	}
+	return nil
+}
+
+// checkDeclaration verifies the optional SHA-256 watch declaration digest.
+func (c *Config) checkDeclaration() error {
+	if c.Declaration != nil && !declarationPattern.MatchString(*c.Declaration) {
+		return usageErr(c.file, "declaration", "must match ^sha256:[0-9a-f]{64}$")
 	}
 	return nil
 }

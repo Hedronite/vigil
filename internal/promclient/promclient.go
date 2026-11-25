@@ -160,22 +160,9 @@ func Query(ctx context.Context, cfg *config.Config, ov *config.Overlay, name, ho
 	if !ok {
 		return nil, exitcode.Newf(exitcode.Usage, "unknown_query", "no query with that name is configured")
 	}
-	needsHost := strings.Contains(q.Expr, hostPlaceholder)
-	switch {
-	case needsHost && host == "":
-		return nil, exitcode.Newf(exitcode.Usage, reasons.MissingHost, "this query needs a host")
-	case !needsHost && host != "":
-		return nil, exitcode.Newf(exitcode.Usage, reasons.UnexpectedHost, "this query takes no host")
-	}
-	if host != "" && !knownHost(ov, host) {
-		return nil, exitcode.Newf(exitcode.Usage, codeUnknownHost, "the host is not a known slug")
-	}
-	expr := q.Expr
-	if needsHost {
-		// A literal replacement of the one admitted placeholder. The config
-		// loader already rejected any other brace sequence, and the host was
-		// checked to be a slug, so nothing here can inject PromQL.
-		expr = strings.ReplaceAll(expr, hostPlaceholder, host)
+	expr, err := expandHost(ov, q.Expr, host)
+	if err != nil {
+		return nil, err
 	}
 
 	client, err := newClient(cfg, ov, backend)
@@ -237,9 +224,6 @@ func Query(ctx context.Context, cfg *config.Config, ov *config.Overlay, name, ho
 			return nil, exitcode.New(exitcode.Unavailable, reasons.HTTPStatus)
 		}
 		mapped := mapInstance(ov, r.Metric["instance"])
-		if mapped == unmapped && host != "" {
-			mapped = host
-		}
 		item := Series{Host: mapped, Value: value}
 		if job := jobWord(r.Metric["job"]); job != "" {
 			item.Job = job
@@ -341,6 +325,42 @@ func healthWord(h string) string {
 	default:
 		return "unknown"
 	}
+}
+
+// expandHost applies the host rules to expr and fills {{.host}}. The host is
+// required exactly when expr holds the placeholder. What is substituted is the
+// instance label the overlay lists first for the slug, because that, not the
+// slug, is what the backend holds. The config loader admits no other brace
+// sequence, and the overlay loader admits no quote or backslash in an instance
+// label, so a label cannot end a quoted PromQL string.
+func expandHost(ov *config.Overlay, expr, host string) (string, error) {
+	needsHost := strings.Contains(expr, hostPlaceholder)
+	switch {
+	case needsHost && host == "":
+		return "", exitcode.Newf(exitcode.Usage, reasons.MissingHost, "this query needs a host")
+	case !needsHost && host != "":
+		return "", exitcode.Newf(exitcode.Usage, reasons.UnexpectedHost, "this query takes no host")
+	case !needsHost:
+		return expr, nil
+	}
+	instance, ok := hostInstance(ov, host)
+	if !ok {
+		return "", exitcode.Newf(exitcode.Usage, codeUnknownHost, "the host is not a known slug")
+	}
+	return strings.ReplaceAll(expr, hostPlaceholder, instance), nil
+}
+
+// hostInstance returns the first instance label the overlay lists for host.
+func hostInstance(ov *config.Overlay, host string) (string, bool) {
+	if !slugPattern.MatchString(host) {
+		return "", false
+	}
+	for _, h := range ov.Hosts {
+		if h.Slug == host && len(h.Instances) > 0 {
+			return h.Instances[0], true
+		}
+	}
+	return "", false
 }
 
 // knownHost accepts only a slug the overlay maps. The product keeps no built-in

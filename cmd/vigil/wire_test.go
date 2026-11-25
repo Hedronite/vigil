@@ -434,3 +434,116 @@ func TestConfigFailureNeverEchoesAHostileField(t *testing.T) {
 		t.Errorf("a clean field path should be kept: %v", err)
 	}
 }
+
+func TestValidateCommand(t *testing.T) {
+	dir := t.TempDir()
+	digest := "sha256:" + strings.Repeat("c3", 32)
+	cfgValid := filepath.Join(dir, "valid.yaml")
+	if err := os.WriteFile(cfgValid, []byte(wireConfig+"declaration: "+digest+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfgNull := filepath.Join(dir, "null.yaml")
+	if err := os.WriteFile(cfgNull, []byte(wireConfig+"declaration: null\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfgBadDecl := filepath.Join(dir, "bad-decl.yaml")
+	if err := os.WriteFile(cfgBadDecl, []byte(wireConfig+"declaration: bad\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfgWildcard := filepath.Join(dir, "wildcard.yaml")
+	if err := os.WriteFile(cfgWildcard, []byte("apiVersion: vigil.config/v0\nlisten: 0.0.0.0:10082\nauthorities:\n  - id: simplex\n    path_ref: env:VIGIL_SIMPLEX_PATH\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	ovValid := filepath.Join(dir, "ov.yaml")
+	if err := os.WriteFile(ovValid, []byte("apiVersion: vigil.overlay/v0\nbackends:\n  - id: prom\n    address: http://prom.example.invalid:9090\nhosts:\n  - slug: core\n    instances:\n      - core.example.invalid:9100\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	ovMissingBackend := filepath.Join(dir, "ov-missing.yaml")
+	if err := os.WriteFile(ovMissingBackend, []byte("apiVersion: vigil.overlay/v0\nhosts:\n  - slug: core\n    instances:\n      - core.example.invalid:9100\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	// Config alone (text and --json).
+	code, out, errs := live(t, "validate", "--config", cfgValid)
+	if code != 0 || errs != "" || out != "ok\n" {
+		t.Fatalf("validate config text: exit=%d out=%q err=%q", code, out, errs)
+	}
+	code, out, errs = live(t, "validate", "--config", cfgNull, "--json")
+	if code != 0 || errs != "" || out != "{\"apiVersion\":\"vigil.validate/v0\",\"status\":\"ok\",\"config\":true,\"overlay\":false}\n" {
+		t.Fatalf("validate config json: exit=%d out=%q err=%q", code, out, errs)
+	}
+	var doc any
+	if err := json.Unmarshal([]byte(out), &doc); err != nil {
+		t.Fatal(err)
+	}
+	if err := loadSchema(t, "vigil.validate.v0.schema.json").Validate(doc); err != nil {
+		t.Fatalf("validate document does not match its schema: %v", err)
+	}
+
+	// Config + overlay.
+	code, out, errs = live(t, "validate", "--config", cfgValid, "--overlay", ovValid, "--json")
+	if code != 0 || errs != "" || out != "{\"apiVersion\":\"vigil.validate/v0\",\"status\":\"ok\",\"config\":true,\"overlay\":true}\n" {
+		t.Fatalf("validate config+overlay json: exit=%d out=%q err=%q", code, out, errs)
+	}
+
+	cfgTypeDecl := filepath.Join(dir, "type-decl.yaml")
+	if err := os.WriteFile(cfgTypeDecl, []byte(wireConfig+"declaration: 7\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfgMiscased := filepath.Join(dir, "miscased.yaml")
+	if err := os.WriteFile(cfgMiscased, []byte(wireConfig+"Declaration: "+digest+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	// Failures: missing --config, invalid declaration, unbound overlay, wildcard listen.
+	for _, tc := range []struct {
+		name string
+		args []string
+		exit int
+		code string
+	}{
+		{"missing config", []string{"validate"}, exitcode.Usage, "missing_config"},
+		{"bad declaration", []string{"validate", "--config", cfgBadDecl}, exitcode.Usage, "config_invalid"},
+		{"declaration of the wrong type", []string{"validate", "--config", cfgTypeDecl}, exitcode.Usage, "config_invalid"},
+		{"miscased key", []string{"validate", "--config", cfgMiscased}, exitcode.Usage, "config_invalid"},
+		{"bad overlay file", []string{"validate", "--config", cfgValid, "--overlay", filepath.Join(dir, "absent.yaml")}, exitcode.Usage, "overlay_invalid"},
+		{"unbound backend", []string{"validate", "--config", cfgValid, "--overlay", ovMissingBackend}, exitcode.Usage, "overlay_invalid"},
+		{"wildcard listen", []string{"validate", "--config", cfgWildcard}, exitcode.Startup, "wildcard_listen"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			code, out, errs := live(t, tc.args...)
+			if code != tc.exit || out != "" {
+				t.Fatalf("exit=%d out=%q err=%q, want exit=%d", code, out, errs, tc.exit)
+			}
+			if got := oneErrorLine(t, tc.name, errs); got != tc.code {
+				t.Fatalf("code=%q, want %q", got, tc.code)
+			}
+		})
+	}
+}
+
+// validate reads files only: a reachable backend named by the overlay sees no
+// request.
+func TestValidateContactsNoBackend(t *testing.T) {
+	var hits atomic.Int64
+	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { hits.Add(1) }))
+	t.Cleanup(srv.Close)
+	dir := t.TempDir()
+	cfg := filepath.Join(dir, "config.yaml")
+	ov := filepath.Join(dir, "overlay.yaml")
+	if err := os.WriteFile(cfg, []byte(wireConfig), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	// The overlay loader takes a name or an IPv4 literal, which is what the test
+	// server listens on.
+	if err := os.WriteFile(ov, []byte("apiVersion: vigil.overlay/v0\nbackends:\n  - id: prom\n    address: "+srv.URL+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	code, out, errs := live(t, "validate", "--config", cfg, "--overlay", ov)
+	if code != 0 || out != "ok\n" {
+		t.Fatalf("exit=%d out=%q err=%q", code, out, errs)
+	}
+	if n := hits.Load(); n != 0 {
+		t.Fatalf("validate made %d requests", n)
+	}
+}

@@ -38,7 +38,7 @@ func spy(calls *[]string, inv *Invocation) Handlers {
 	}
 	return Handlers{
 		PromTargets: rec("prom-targets"), PromQuery: rec("prom-query"),
-		GrafanaHealth: rec("grafana-health"), Sources: rec("sources"),
+		GrafanaHealth: rec("grafana-health"), Sources: rec("sources"), Validate: rec("validate"),
 	}
 }
 
@@ -155,7 +155,7 @@ func TestURLShapedArgumentsExitUsage(t *testing.T) {
 		"UP",
 	}
 	commands := [][]string{
-		{"version"}, {"prom", "targets"}, {"grafana", "health"}, {"sources"}, {"prom"}, {"grafana"}, {},
+		{"version"}, {"prom", "targets"}, {"grafana", "health"}, {"sources"}, {"validate"}, {"prom"}, {"grafana"}, {},
 	}
 	for _, v := range values {
 		for _, cmd := range commands {
@@ -191,7 +191,7 @@ func TestURLShapedArgumentsExitUsage(t *testing.T) {
 			continue
 		}
 		for _, flag := range []string{"--config", "--overlay"} {
-			for _, cmd := range [][]string{{"sources"}, {"prom", "targets"}, {"grafana", "health"}, {"prom", "query", "up_total"}} {
+			for _, cmd := range [][]string{{"sources"}, {"validate"}, {"prom", "targets"}, {"grafana", "health"}, {"prom", "query", "up_total"}} {
 				args := append(append([]string{}, cmd...), flag, v)
 				var calls []string
 				code, out, errs := call(t, spy(&calls, nil), args...)
@@ -235,6 +235,7 @@ func TestValidArgumentsReachTheHandler(t *testing.T) {
 		{[]string{"prom", "targets"}, "prom-targets"},
 		{[]string{"grafana", "health"}, "grafana-health"},
 		{[]string{"sources"}, "sources"},
+		{[]string{"validate"}, "validate"},
 		{[]string{"prom", "query", "up_total"}, "prom-query"},
 	} {
 		calls = nil
@@ -247,7 +248,7 @@ func TestValidArgumentsReachTheHandler(t *testing.T) {
 
 func TestStubsAreNotVerdicts(t *testing.T) {
 	for _, args := range [][]string{
-		{"prom", "targets"}, {"prom", "query", "up_total"}, {"grafana", "health"}, {"sources"},
+		{"prom", "targets"}, {"prom", "query", "up_total"}, {"grafana", "health"}, {"sources"}, {"validate"},
 	} {
 		code, out, errs := call(t, defaultHandlers(), args...)
 		if code != exitcode.Internal || out != "" {
@@ -347,7 +348,7 @@ func TestPanicExitsInternalWithOneJSONLine(t *testing.T) {
 	}
 }
 
-func TestCommandSetIsExactlyTheSix(t *testing.T) {
+func TestCommandSetIsExactlyThePublished(t *testing.T) {
 	var out bytes.Buffer
 	root := newRoot(&out, defaultHandlers())
 	var got []string
@@ -362,7 +363,7 @@ func TestCommandSetIsExactlyTheSix(t *testing.T) {
 	}
 	want := map[string]bool{
 		"version": true, "prom targets": true, "prom query": true,
-		"grafana health": true, "sources": true, "help": true,
+		"grafana health": true, "sources": true, "validate": true, "help": true,
 	}
 	for _, g := range got {
 		if !want[g] {

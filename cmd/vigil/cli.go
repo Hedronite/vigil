@@ -45,6 +45,7 @@ type Handlers struct {
 	PromQuery     Handler
 	GrafanaHealth Handler
 	Sources       Handler
+	Validate      Handler
 }
 
 // notImplemented is the body of a command whose backend has not landed yet.
@@ -58,6 +59,7 @@ func defaultHandlers() Handlers {
 		PromQuery:     notImplemented,
 		GrafanaHealth: notImplemented,
 		Sources:       notImplemented,
+		Validate:      notImplemented,
 	}
 }
 
@@ -217,7 +219,14 @@ func newRoot(out *bytes.Buffer, h Handlers) *cobra.Command {
 		RunE:  run(h.Sources, nil, nil),
 	}
 
-	root.AddCommand(version, prom, grafana, sources)
+	validate := &cobra.Command{
+		Use:   "validate",
+		Short: "Validate config and optional overlay without probing",
+		Args:  cobra.NoArgs,
+		RunE:  run(h.Validate, nil, nil),
+	}
+
+	root.AddCommand(version, prom, grafana, sources, validate)
 	return root
 }
 

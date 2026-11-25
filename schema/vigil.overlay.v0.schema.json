@@ -44,7 +44,7 @@
       }
     },
     "hosts": {
-      "description": "Maps the instance labels a backend reports onto one public slug. Without a mapping an instance prints as unmapped.",
+      "description": "Maps the instance labels a backend reports onto one public slug. Without a mapping an instance prints as unmapped. A query's {{.host}} becomes the first instance listed for the host.",
       "type": "array",
       "items": {
         "type": "object",

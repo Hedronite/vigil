@@ -23,6 +23,7 @@ func liveHandlers() Handlers {
 		PromQuery:     promQuery,
 		GrafanaHealth: grafanaHealth,
 		Sources:       listSources,
+		Validate:      validateConfig,
 	}
 }
 
@@ -65,6 +66,39 @@ func grafanaHealth(ctx context.Context, inv Invocation) error {
 	return printHealth(inv, doc)
 }
 
+// validateVersion is the apiVersion of the document `validate --json` prints.
+const validateVersion = "vigil.validate/v0"
+
+type validateDoc struct {
+	APIVersion string `json:"apiVersion"`
+	Status     string `json:"status"`
+	Config     bool   `json:"config"`
+	Overlay    bool   `json:"overlay"`
+}
+
+// validateConfig runs the strict loaders and nothing else: no backend is
+// contacted. The overlay is optional; given, it must also agree with the config.
+func validateConfig(_ context.Context, inv Invocation) error {
+	if inv.ConfigPath == "" {
+		return exitcode.Newf(exitcode.Usage, "missing_config", "--config is required")
+	}
+	cfg, err := config.Load(inv.ConfigPath)
+	if err != nil {
+		return configFailure("config", err)
+	}
+	hasOverlay := inv.OverlayPath != ""
+	if hasOverlay {
+		if _, err := loadOverlay(inv.OverlayPath, cfg); err != nil {
+			return err
+		}
+	}
+	if inv.JSON {
+		return render.JSON(inv.Stdout, validateDoc{APIVersion: validateVersion, Status: "ok", Config: true, Overlay: hasOverlay})
+	}
+	_, err = inv.Stdout.Write([]byte("ok\n"))
+	return err
+}
+
 // listSources prints vigil.sources/v0. A backend that is down is a row state,
 // not a failure, so this command does not exit 4.
 func listSources(ctx context.Context, inv Invocation) error {
@@ -101,14 +135,23 @@ func loadDocuments(inv Invocation) (*config.Config, *config.Overlay, error) {
 	if err != nil {
 		return nil, nil, configFailure("config", err)
 	}
-	ov, err := config.LoadOverlay(inv.OverlayPath)
+	ov, err := loadOverlay(inv.OverlayPath, cfg)
 	if err != nil {
-		return nil, nil, configFailure("overlay", err)
-	}
-	if err := ov.Bind(cfg); err != nil {
-		return nil, nil, configFailure("overlay", err)
+		return nil, nil, err
 	}
 	return cfg, ov, nil
+}
+
+// loadOverlay reads an overlay and checks that it agrees with cfg.
+func loadOverlay(path string, cfg *config.Config) (*config.Overlay, error) {
+	ov, err := config.LoadOverlay(path)
+	if err != nil {
+		return nil, configFailure("overlay", err)
+	}
+	if err := ov.Bind(cfg); err != nil {
+		return nil, configFailure("overlay", err)
+	}
+	return ov, nil
 }
 
 // fieldPattern is the only shape of config field path that is repeated in an

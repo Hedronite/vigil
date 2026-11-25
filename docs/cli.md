@@ -27,6 +27,7 @@ Available Commands:
   help        Help about any command
   prom        Query the named Prometheus backend
   sources     List the configured backends and their reachability
+  validate    Validate config and optional overlay without probing
   version     Print the version, the commit and the Go runtime
 Flags:
       --config string    path to the vigil.config/v0 file
@@ -90,12 +91,15 @@ even by accident.
 ## vigil prom query <name> (V1)
 
 Runs one named query from `vigil.config/v0`. The name is the only handle:
-there is no free-form path over HTTP or on the CLI, and the host slug
-(`{{.host}}`) is the only template variable.
+there is no free-form path over HTTP or on the CLI, and `{{.host}}` is the
+only template variable. `--host` takes a slug; the expr receives the first
+entry of that host's `instances` list in the overlay, so list the label the
+backend holds first. The label is inserted as written: inside a `=~` matcher
+its dots and brackets keep their regular-expression meaning.
 
 | Flag | Meaning |
 | --- | --- |
-| `--host SLUG` | fills `{{.host}}`; must be a slug the overlay's `hosts[]` defines |
+| `--host SLUG` | a slug the overlay's `hosts[]` defines; `{{.host}}` becomes that host's first instance label |
 
 Placeholder rules, both exit 3 with no backend call:
 
@@ -169,7 +173,20 @@ row uses the health check. Rows are data: a down backend is a row state, and
 the command still exits 0. `last_ok` stays null in V1 — no state is kept
 between runs. Authority rows arrive at V2 and informational rows at V5.
 
-## vigil serve (V3)
+## vigil validate
+
+Validates a `vigil.config/v0` file (`--config`) and an optional
+`vigil.overlay/v0` file (`--overlay`) using the strict loader without
+contacting any backend. Config validation admits optional top-level
+`declaration` (`^sha256:[0-9a-f]{64}$` or `null`).
+
+Exits `0` when valid (`ok` in human output, or one `vigil.validate/v0` line
+with `--json`:
+`{"apiVersion":"vigil.validate/v0","status":"ok","config":true,"overlay":<bool>}`),
+`3` on a missing `--config` or on config or overlay errors, and `5` on a
+wildcard `listen` address.
+
+## vigil serve (V3 — planned, not yet shipped)
 
 Starts the loopback listener. Routes:
 
