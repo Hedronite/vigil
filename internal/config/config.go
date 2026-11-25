@@ -34,6 +34,12 @@ const (
 	MaxQueryTimeout     = "10s"
 	maxSeriesCap        = 200
 	maxExprLength       = 2048
+	// The freshness defaults apply to every key a config leaves out, the
+	// whole block included.
+	DefaultStaleAfter        = "120s"
+	DefaultSkewBudget        = "10s"
+	DefaultDeclarationGraceS = 240
+	maxDeclarationGraceS     = 86400
 )
 
 // Error is a configuration failure that already knows its exit code: a bad
@@ -111,9 +117,25 @@ type Query struct {
 	MaxSeries int    `yaml:"max_series"`
 }
 
-// Freshness holds the global age bound for authority documents.
+// Freshness holds the global age bound for authority documents, the clock
+// difference tolerated before it is reported, and how long a changed
+// declaration may differ from a witness before the drift counts.
 type Freshness struct {
-	StaleAfter string `yaml:"stale_after"`
+	StaleAfter        string   `yaml:"stale_after"`
+	SkewBudget        string   `yaml:"skew_budget"`
+	DeclarationGraceS *Seconds `yaml:"declaration_grace_s"`
+}
+
+// Seconds is a whole number of seconds. The decoder would truncate 1.5 to 1,
+// so anything but an integer literal is refused.
+type Seconds int
+
+// UnmarshalYAML accepts an integer literal only.
+func (s *Seconds) UnmarshalYAML(node *yaml.Node) error {
+	if node.ShortTag() != "!!int" {
+		return fmt.Errorf("line %d: want whole seconds, got %q", node.Line, node.Value)
+	}
+	return node.Decode((*int)(s))
 }
 
 // Tokens holds the paths to the read and signal tokens.
@@ -148,7 +170,9 @@ var (
 	slugPattern        = regexp.MustCompile(`^[a-z][a-z0-9-]{0,31}$`)
 	declarationPattern = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
 	durationPattern    = regexp.MustCompile(`^[1-9][0-9]{0,3}s$`)
-	timeoutPattern     = regexp.MustCompile(`^([1-9]|10)s$`)
+	// skewPattern is 1s to 300s.
+	skewPattern    = regexp.MustCompile(`^([1-9]|[1-9][0-9]|[12][0-9]{2}|300)s$`)
+	timeoutPattern = regexp.MustCompile(`^([1-9]|10)s$`)
 	// exprPattern permits braces only as the literal {{.host}}; a label
 	// selector such as up{job="node"} still passes.
 	exprPattern     = regexp.MustCompile(`^([^{]|\{[^{]|\{\{\.host\}\}|\{$)*$`)
@@ -250,8 +274,8 @@ func (c *Config) validate() error {
 		}
 	}
 
-	if c.Freshness != nil && c.Freshness.StaleAfter != "" && !durationPattern.MatchString(c.Freshness.StaleAfter) {
-		return usageErr(c.file, "freshness.stale_after", "%q is not a duration in seconds", c.Freshness.StaleAfter)
+	if err := c.checkFreshness(); err != nil {
+		return err
 	}
 
 	names := map[string]bool{}
@@ -312,6 +336,40 @@ func (c *Config) checkDeclaration() error {
 		return usageErr(c.file, "declaration", "must match ^sha256:[0-9a-f]{64}$")
 	}
 	return nil
+}
+
+// checkFreshness applies the freshness defaults and checks the bounds.
+func (c *Config) checkFreshness() error {
+	if c.Freshness == nil {
+		c.Freshness = &Freshness{}
+	}
+	f := c.Freshness
+	f.applyDefaults()
+	if !durationPattern.MatchString(f.StaleAfter) {
+		return usageErr(c.file, "freshness.stale_after", "%q is not a duration in seconds", f.StaleAfter)
+	}
+	if !skewPattern.MatchString(f.SkewBudget) {
+		return usageErr(c.file, "freshness.skew_budget", "want 1s to 300s, got %q", f.SkewBudget)
+	}
+	if grace := *f.DeclarationGraceS; grace < 0 || grace > maxDeclarationGraceS {
+		return usageErr(c.file, "freshness.declaration_grace_s", "want 0 to %d, got %d", maxDeclarationGraceS, grace)
+	}
+	return nil
+}
+
+// applyDefaults fills the keys the document left out. A grace of zero is a
+// choice, not an omission, which is why that field is a pointer.
+func (f *Freshness) applyDefaults() {
+	if f.StaleAfter == "" {
+		f.StaleAfter = DefaultStaleAfter
+	}
+	if f.SkewBudget == "" {
+		f.SkewBudget = DefaultSkewBudget
+	}
+	if f.DeclarationGraceS == nil {
+		grace := Seconds(DefaultDeclarationGraceS)
+		f.DeclarationGraceS = &grace
+	}
 }
 
 // checkListen rejects every spelling of a wildcard. netip decides whether an

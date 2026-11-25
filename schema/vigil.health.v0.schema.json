@@ -21,6 +21,16 @@
     },
     "checked_at": { "$ref": "#/$defs/timestamp" }
   },
+  "allOf": [
+    {
+      "if": { "required": ["state"], "properties": { "state": { "const": "ok" } } },
+      "then": { "properties": { "detail_code": { "type": "null" } } }
+    },
+    {
+      "if": { "required": ["state"], "properties": { "state": { "const": "unavailable" } } },
+      "then": { "required": ["detail_code"], "properties": { "detail_code": { "type": "string" } } }
+    }
+  ],
   "$defs": {
     "token": {
       "type": "string",
