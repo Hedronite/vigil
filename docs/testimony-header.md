@@ -20,8 +20,8 @@ See [semantics.md](semantics.md) for Vigil's overall combination rules and [cli.
 | Field | Type | Required schema constraint | Semantics |
 | --- | --- | --- | --- |
 | `generated_at` | `string` | RFC 3339 UTC timestamp (`Z` suffix) | When the producer finished observing (existing field, unchanged). |
-| `observed` | `boolean` | `true` or `false` | `false` means the document carries no first-hand observation and carries no verdict colour. |
-| `valid_for` | `integer` | Integer seconds `>= 1` | How long the producer stands behind the document. Never a duration string or float. |
+| `observed` | `boolean` | `true` or `false` | `false` means the document carries no first-hand observation of its subjects and is never GREEN (required-colour `v0` producers keep their fail-closed colour; optional-colour producers omit it; consumers treat it only as a statement about the producer's sight). |
+| `valid_for` | `integer` | Integer seconds `>= 1` | How long the producer stands behind the document. Never a duration string or float (JSON integer literal only). |
 | `declaration` | `string \| null` | `^sha256:[0-9a-f]{64}$` or `null` | Copied verbatim from optional config key `declaration`; `null` means undeclared (normal for standalone OSS and synthetic example configs). |
 
 ### JSON Schema fragments
@@ -36,7 +36,7 @@ Producers embed these property definitions (JSON Schema 2020-12) at the top leve
     "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,9})?Z$"
   },
   "observed": {
-    "description": "Whether the producer completed at least one first-hand observation. When false, the document carries no first-hand observation and carries no verdict colour.",
+    "description": "Whether the producer completed at least one first-hand observation. When false, the document carries no first-hand observation of its subjects and is never GREEN; required-colour v0 producers keep their fail-closed colour and optional-colour producers omit it.",
     "type": "boolean"
   },
   "valid_for": {
@@ -52,24 +52,24 @@ Producers embed these property definitions (JSON Schema 2020-12) at the top leve
 }
 ```
 
-Existing producers that emit second-precision RFC 3339 UTC timestamps (`^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$`) remain conformant.
+Producers keep their existing `generated_at` schema definition (for example, second-precision `^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$`); the `generated_at` fragment above shows the family envelope consumers accept.
 
 Producer and consumer config schemas admit the optional top-level `declaration` key using the same `["string", "null"]` and `^sha256:[0-9a-f]{64}$` constraint.
 
 ### `observed: false` per-tool semantics
 
-When `observed` is `false`, the document carries no first-hand observation and carries no verdict colour. Each witness defines `observed: false` as follows:
+`observed: false` means the document carries no first-hand observation of its subjects. It is never GREEN. A producer whose `v0` schema requires a colour keeps its existing fail-closed colour on such a document (Simplex: YELLOW with `probe_unknown` / `vantage_blind`; Augur: YELLOW with `alertmanager_unreachable`, RED with `observability_blind` past the dead-man window). A producer whose colour is optional omits it (Scry `severity`); Cubit carries none. Consumers treat the colour of an `observed: false` document as a statement about the producer's own sight, never as evidence about the subjects it names, and never combine it as GREEN.
 
 | Witness | `observed: false` condition | Notes |
 | --- | --- | --- |
-| `scry` | Probe could not observe cluster | Existing meaning unchanged. |
-| `simplex` | Every check is `unknown` | Vantage is blind. |
-| `cubit` | Exit `2` / no configured root usable | Scanner could not inspect any declared root. |
-| `augur` | Alertmanager unreachable or poll failed | No fresh alert poll completed. |
+| `scry` | Probe could not observe cluster | Existing meaning unchanged (`severity` omitted). |
+| `simplex` | Every check is `unknown` | Vantage is blind (`probe_unknown` / `vantage_blind`). |
+| `cubit` | Exit `2` / no configured root usable | Scanner could not inspect any declared root (carries no colour). |
+| `augur` | Alertmanager unreachable, poll failed, or `alerts_over_cap` | No fresh alert poll evaluated (`alerts_over_cap` is a failed poll that evaluates no alerts). |
 
 ### `valid_for` rules
 
-- **Integer seconds only.** `valid_for` is always an integer `>= 1` representing seconds — **never** duration strings (such as `"60s"`) or floating-point numbers — so canonical JSON and contract validators remain free of unit and float formatting.
+- **Integer seconds only.** `valid_for` is always an integer `>= 1` representing seconds — **never** duration strings (such as `"60s"`) or floating-point numbers — so canonical JSON and contract validators remain free of unit and float formatting. In JSON, producers must emit an integer literal without a fractional part (e.g., `60`, not `60.0`), because Go consumers decode `valid_for` into `int` even though JSON Schema 2020-12 `integer` admits zero-fraction floats.
 - **`serve` modes.** Continuous `serve` modes emit `valid_for = 2 * interval`, tolerating one missed pass at the source.
 - **One-shot commands.** One-shot commands accept `--valid-for` (integer seconds `>= 1`) with a documented per-tool default.
 - **Consumer tightening.** Effective freshness in Vigil is `min(valid_for, stale_after)`. Vigil's configuration may tighten a producer's promise, never extend it.
@@ -82,7 +82,7 @@ When `observed` is `false`, the document carries no first-hand observation and c
 
 ## 3. Schema evolution and rollout law
 
-Every witness output schema and config schema sets `additionalProperties: false` everywhere. Because strict validators and golden fixtures reject unknown properties, adding header fields follows a strict three-step order:
+Every witness sets `additionalProperties: false` at the top level of every output and config schema (reserved sub-blocks such as `augur{}` and `cubit{}` inside `vigil.summary/v0` remain `additionalProperties: true` until populated). Because strict validators and golden fixtures reject unknown top-level properties, adding header fields follows a strict three-step order:
 
 1. **Admit.** Add the optional output fields (`observed`, `valid_for`, `declaration`, plus `generated_at` where not already present) to the producer's output schema (listed under `properties`, **not** in `required`), and add optional `declaration` to its config schema (accepted by `validate`). Update internal fixtures and goldens.
 2. **Re-vendor.** Update each consumer's vendored copy of the upstream schema to the admitted version, recording the upstream source commit SHA and SHA-256 digest.
@@ -98,16 +98,16 @@ Within a single repository, Admit and Emit may land in one PR once internal fixt
 
 ## 4. Consumer freshness and drift summary
 
-Downstream V2 summary evaluation applies pure functions over stored witness documents and Vigil's local clock:
+Downstream V2 summary evaluation applies pure functions over stored witness documents and Vigil's local clock (note that the integer-seconds requirement above applies to emitted header fields such as `valid_for`, whereas Vigil's own config keeps duration strings such as `stale_after`, `skew_budget`, and `declaration_grace`):
 
 - **`received_at`.** Vigil records its local clock at the first sighting of a document with a new `(generated_at, sha256(body))` pair. A file whose timestamp and body do not change keeps its original `received_at` and ages normally.
 - **Dual freshness check.** A document is fresh if and only if both conditions hold:
   - `now - received_at <= eff_valid_for`, where `eff_valid_for = min(valid_for, stale_after)` (prevents a fast producer clock from extending its lifetime);
   - `now - generated_at <= eff_valid_for + skew_budget` (catches a frozen producer clock repeatedly emitting an old `generated_at`).
-- **Informational `clock_skew`.** Vigil emits a per-source `clock_skew` finding when `|received_at - generated_at| > skew_budget` (configurable, default `10s`). `clock_skew` is informational only: it never turns a stale document fresh and never colours `overall` by itself.
+- **Informational `clock_skew`.** Vigil emits a per-source `clock_skew` finding when `|received_at - generated_at| > skew_budget` (config duration string, default `"10s"`). `clock_skew` is informational only: it never turns a stale document fresh and never colours `overall` by itself.
 - **Reference-based `declaration_drift`.**
   - The reference hash is Vigil's own `declaration` from its config (never a majority vote across witnesses).
   - Drift occurs when any fresh, declared witness document carries a `declaration` differing from Vigil's reference.
-  - Within the configured grace window (`declaration_grace_s`, default `2 *` the longest producer interval) after Vigil's own `declaration` changes, drift is recorded as an informational fact; after the grace window expires, drift maps to `YELLOW` and never `RED`.
+  - Within the configured grace window (`declaration_grace`, config duration string, default `2 *` the longest producer interval) after Vigil's own `declaration` changes, drift is recorded as an informational fact. After the grace window expires, drift maps to `YELLOW` and never `RED`.
   - Documents with `declaration: null` are counted as `undeclared`, not as drift.
-  - Summary output lists the subjects observed on each declaration hash.
+  - Summary output lists the sources and authorities observed on each declaration hash.
