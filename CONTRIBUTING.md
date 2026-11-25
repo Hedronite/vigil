@@ -64,11 +64,16 @@ go test -race -shuffle=on -count=1 ./...
 scripts/scrub.sh
 scripts/scrub.sh --selftest
 scripts/depguard-selftest.sh
+scripts/check-vendor.sh
 scripts/fuzz.sh --selftest
 scripts/fuzz.sh
 ```
 
 Use golangci-lint v2 and a current govulncheck. All checks are blocking.
+
+`scripts/check-vendor.sh` checks the vendored Simplex schema and case files against
+`testdata/simplex/SOURCE` and against the bytes at the recorded upstream commit.
+It needs the network; `--offline` skips only the upstream half, and is refused in CI.
 
 ## Rules that are not negotiable
 
