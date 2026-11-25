@@ -1,0 +1,13 @@
+{
+  "apiVersion": "vigil.sources/v0",
+  "generated_at": "2026-11-14T09:00:00Z",
+  "sources": [
+    {
+      "id": "grafana",
+      "kind": "grafana",
+      "state": "unavailable",
+      "observed_at": null,
+      "last_ok": null
+    }
+  ]
+}

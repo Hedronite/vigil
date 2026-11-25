@@ -79,6 +79,19 @@
           "type": "string",
           "default": "120s",
           "pattern": "^[1-9][0-9]{0,3}s$"
+        },
+        "skew_budget": {
+          "description": "The difference between a document's generated_at and the time Vigil first saw it that is tolerated before the clock_skew finding. 1s to 300s, default 10s.",
+          "type": "string",
+          "default": "10s",
+          "pattern": "^([1-9]|[1-9][0-9]|[12][0-9]{2}|300)s$"
+        },
+        "declaration_grace_s": {
+          "description": "Seconds after Vigil's own declaration changes during which a witness on another declaration is listed but does not colour overall. 0 to 86400, default 240. The default is a fixed number and does not follow stale_after.",
+          "type": "integer",
+          "default": 240,
+          "minimum": 0,
+          "maximum": 86400
         }
       }
     },

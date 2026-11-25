@@ -15,6 +15,7 @@ const (
 	SchemaMajor          = "schema_major"
 	ClockSkew            = "clock_skew"
 	AuthorityUnavailable = "authority_unavailable"
+	DeclarationDrift     = "declaration_drift"
 )
 
 // Own lists Vigil's own reason codes.
@@ -24,6 +25,7 @@ var Own = []string{
 	SchemaMajor,
 	ClockSkew,
 	AuthorityUnavailable,
+	DeclarationDrift,
 }
 
 // Backend and query detail codes (V1). They say why a backend call failed, in

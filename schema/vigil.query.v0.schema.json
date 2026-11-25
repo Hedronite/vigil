@@ -51,8 +51,9 @@
             "pattern": "^[a-z][a-z0-9_-]{0,63}$"
           },
           "value": {
-            "description": "A decimal, an exponent, NaN or an infinity, as Prometheus reports it. The shape is pinned so a value that is not a number, such as an address or a name, cannot ride in this field.",
+            "description": "A decimal, an exponent, NaN or an infinity, as Prometheus reports it. The shape is pinned so a value that is not a number, such as an address or a name, cannot ride in this field. At most 512 characters: the longest shortest-round-trip float64 in plain decimal notation is 327.",
             "type": "string",
+            "maxLength": 512,
             "pattern": "^[+-]?([0-9]+(\\.[0-9]+)?([eE][+-]?[0-9]+)?|Inf)$|^NaN$"
           }
         }
@@ -62,7 +63,7 @@
   "$defs": {
     "slug": {
       "type": "string",
-      "pattern": "^[a-z0-9][a-z0-9-]{0,31}$"
+      "pattern": "^[a-z][a-z0-9-]{0,31}$"
     },
     "token": {
       "type": "string",

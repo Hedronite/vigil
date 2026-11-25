@@ -22,6 +22,8 @@ queries:
     max_series: 200
 freshness:
   stale_after: 120s
+  skew_budget: 10s
+  declaration_grace_s: 240
 tokens:
   read_file: env:VIGIL_READ_TOKEN_FILE
   signal_file: /etc/vigil/signal.token

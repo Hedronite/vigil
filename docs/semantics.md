@@ -10,15 +10,18 @@ An authority is a tool that publishes its own verdict document: Simplex now, Aug
 
 Severity order is GREEN < YELLOW < RED.
 
-**The rule, exactly.** `overall` is the worst severity among the readable verdicts in `verdicts[]`, after two caps and nothing else. The stale cap: a stale verdict counts as at least YELLOW. The missing-authority cap: while any configured authority is unavailable, `overall` is at least YELLOW. If no authority is readable, `overall` is null.
+**The rule, exactly.** `overall` is the worst severity among the readable verdicts in `verdicts[]`, after three caps and nothing else. The stale cap: a stale verdict counts as at least YELLOW. The missing-authority cap: while any configured authority is unavailable, `overall` is at least YELLOW. The drift cap: while a witness has drifted from Vigil's declaration and the grace window has closed (section 20), `overall` is at least YELLOW. If no authority is readable, `overall` is null.
+
+The schema holds each verdict to its state: `unavailable` has severity null, and `ok` and `stale` always have a severity.
 
 | Rule | Statement | Fixture |
 | --- | --- | --- |
-| Worst of | `overall` is the worst severity among the readable verdicts, after the two caps below. With one authority and no cap in play, `overall` is that authority's published severity. With two, it is the worse of the two. | `simplex-green` (one authority, GREEN), `vantage-blind` (one authority, RED), `simplex-yellow-augur-red` (YELLOW and RED give RED) |
-| Stale cap | A verdict whose `generated_at` is older than `stale_after` (default 120s, per-authority override) has state `stale` and counts as at least YELLOW. GREEN rises to YELLOW; YELLOW and RED stay. The verdict keeps the severity the authority published and gains the reason `source_stale`; `overall` carries the capped value. So one authority does not always give `overall` equal to its published severity: a stale GREEN gives YELLOW. This is the only change Vigil makes to a verdict. | `simplex-stale-green` (verdict GREEN, `overall` YELLOW) |
+| Worst of | `overall` is the worst severity among the readable verdicts, after the caps. With one authority and no cap in play, `overall` is that authority's published severity. With two, it is the worse of the two. | `simplex-green` (one authority, GREEN), `vantage-blind` (one authority, RED), `simplex-yellow-augur-red` (YELLOW and RED give RED) |
+| Stale cap | A verdict whose document is not fresh (section 9; `stale_after` defaults to 120s, with a per-authority override) has state `stale` and counts as at least YELLOW. GREEN rises to YELLOW; YELLOW and RED stay. The verdict keeps the severity the authority published and gains the reason `source_stale`; `overall` carries the capped value. So one authority does not always give `overall` equal to its published severity: a stale GREEN gives YELLOW. This is the only change Vigil makes to a verdict. | `simplex-stale-green` (verdict GREEN, `overall` YELLOW) |
 | Missing authority | An authority that is absent, unreadable, undecodable or on an unknown major has state `unavailable`, severity null, reason `authority_unavailable`. It leaves the worst-of, and `overall` cannot be better than YELLOW while it is missing. The cause goes in that source's `detail_code` (`source_unavailable`, `schema_major`). | `augur-unavailable` (Simplex green, Augur absent), `schema-major-mismatch` (Simplex on an unknown major, Augur green) |
 | Nothing readable | If no authority could be read, `overall` is null. Null is never GREEN. | `all-unavailable` |
 | Adding an authority | Adding a configured authority can keep `overall` or make it worse, never better: the worst-of can only rise, and an authority that cannot be read adds the YELLOW floor of the missing-authority cap. | `simplex-yellow-augur-red` (adding a RED Augur to a YELLOW Simplex gives RED), `augur-unavailable` (adding an unreadable Augur to a GREEN Simplex gives YELLOW) |
+| Declaration drift | Drift past the grace window raises `overall` to at least YELLOW and never to RED. It changes no verdict, and it leaves a null `overall` null. | section 20 |
 | No second rollup | Vigil does not recompute a host or check result from a primitive. It combines verdicts; it does not re-derive them. | `simplex-yellow-augur-red` |
 
 Before Augur's Vigil fields land, `verdicts[]` holds `simplex` only, and the document says so. Augur-shaped fields injected early leave `overall` unchanged.
@@ -31,7 +34,7 @@ Before Augur's Vigil fields land, `verdicts[]` holds `simplex` only, and the doc
 
 ## 3. Beside `overall`
 
-These never change `overall`, the chip colour, or the exit code. Their status lives in `sources[]` only.
+What these report never changes `overall`, the chip colour, or the exit code, and their status lives in `sources[]` only. The one exception is about configuration, not about what they report: a fresh witness document that declares another watch declaration counts toward the drift cap (section 20).
 
 | Source | What it adds | Fixture |
 | --- | --- | --- |
@@ -45,7 +48,7 @@ A source joins `verdicts[]` only if it ships a document with its own heartbeat a
 
 ## 4. Reasons
 
-Authorities own their reason strings. Vigil passes them through unchanged on `hosts[].reasons`, on `verdicts[].reasons` for any authority-level reasons an authority publishes (Simplex publishes none; Augur will), and in the `augur{}` block once Augur's fields land. It checks only the shape `^[a-z][a-z0-9_]{0,47}$`, so an upstream addition never breaks it. Vigil's own reasons are `source_stale`, `source_unavailable`, `schema_major`, `clock_skew` (a file newer than its own `generated_at`) and `authority_unavailable`. A consumer shows an unknown reason as plain text.
+Authorities own their reason strings. Vigil passes them through unchanged on `hosts[].reasons`, on `verdicts[].reasons` for any authority-level reasons an authority publishes (Simplex publishes none; Augur will), and in the `augur{}` block once Augur's fields land. It checks only the shape `^[a-z][a-z0-9_]{0,47}$`, so an upstream addition never breaks it. Vigil's own reasons are `source_stale`, `source_unavailable`, `schema_major`, `clock_skew` (section 9), `authority_unavailable` and `declaration_drift` (section 20). A consumer shows an unknown reason as plain text.
 
 ## 5. Exit codes
 
@@ -110,7 +113,9 @@ A `vigil.signal/v0` is ephemeral and arrives only by authenticated POST.
 
 - Vigil reads each authority's document from a file path in the config (`path_ref`; 4 MiB cap, one read per request, unknown fields ignored). It never runs the authority and never reads Simplex's `/metrics`.
 - The writer publishes by temp file, fsync and atomic rename, and keeps the last good file if a run fails. Vigil ages that file into `stale`.
-- Freshness is the age of the document's `generated_at`. A file modified time ahead of `generated_at` adds the reason `clock_skew`.
+- `received_at` is Vigil's own clock when it first saw a document with a new pair of `generated_at` and body digest; a file that does not change keeps it and ages. A one-shot read has no memory, so it takes the file's modification time, never later than now.
+- A document is fresh only while both hold: `now - received_at <= eff_valid_for` and `now - generated_at <= eff_valid_for + skew_budget`. `eff_valid_for` is the smaller of the document's `valid_for` and `stale_after`, or `stale_after` when the document has no `valid_for`. Configuration can shorten a producer's promise and never extend it, and a producer clock that runs ahead buys no extra life.
+- `clock_skew` is reported for a source when `received_at` and `generated_at` differ, in either direction, by more than `freshness.skew_budget` (default 10s). It is information: it never makes a stale document fresh and never colours `overall` by itself. It rides in that authority's `verdicts[].reasons`; a source row with state `ok` has no `detail_code`, so the row shows it only as the gap between `observed_at` and `received_at`.
 - Simplex, Augur and Scry all arrive this way. Vigil stays exec-free and holds no cluster credentials.
 - The Simplex writer publishes its document on every exit that carries a verdict or a blind vantage: 0, 1, 2 and 5. It never writes on 3 (configuration error) or 4 (I/O error); with no file there is nothing to read, so Vigil reports that authority `unavailable`. The vendored Simplex fixtures show it: `testdata/simplex/config-error` (exit 3) and `testdata/simplex/io-error` (exit 4) hold an `exit` file and no document; every other case holds both.
 - The writer of record is `simplex serve --out PATH`, which rewrites the file every interval (default 30s, well inside Vigil's 120s `stale_after`). The fallback is a timer that runs `simplex check --json --out PATH`.
@@ -119,11 +124,12 @@ A `vigil.signal/v0` is ephemeral and arrives only by authenticated POST.
 
 ## 10. Versioning
 
-Every document carries an `apiVersion`: `vigil.summary/v0`, `vigil.signal/v0`, `vigil.error/v0`, `vigil.config/v0`, `vigil.overlay/v0`, `vigil.sources/v0`, `vigil.targets/v0`, `vigil.query/v0` and `vigil.health/v0`. Inside `v0` the change rule is additive: a field may be added, and never removed, renamed, re-typed or given a new meaning. Anything else needs a new major. A reader ignores fields it does not know, and refuses a major it does not know.
+Every document carries an `apiVersion`: `vigil.summary/v0`, `vigil.signal/v0`, `vigil.error/v0`, `vigil.config/v0`, `vigil.overlay/v0`, `vigil.sources/v0`, `vigil.targets/v0`, `vigil.query/v0`, `vigil.health/v0` and `vigil.validate/v0`. Inside `v0` the change rule is additive: a field may be added, and never removed, renamed, re-typed or given a new meaning. Anything else needs a new major. A reader ignores fields it does not know, and refuses a major it does not know.
 
 - Vigil reading an authority document on an unknown major treats that authority as `unavailable`: severity null, reason `authority_unavailable`, `detail_code` `schema_major`. The caps in section 1 then apply. Fixture: `schema-major-mismatch`.
 - A consumer of `vigil.summary` (Facet, an agent) refuses a summary on an unknown major instead of guessing at its fields.
-- The nine Vigil schemas under `schema/` are the contract: `vigil.summary`, `vigil.signal`, `vigil.error`, `vigil.config`, `vigil.overlay`, `vigil.sources`, `vigil.targets`, `vigil.query` and `vigil.health`, each at `v0`. `simplex.probe.v0.schema.json` beside them is a vendored copy of Simplex's own contract, not a Vigil document. A conformance test validates every fixture against them, and the binary never runs the schema validator.
+- The ten Vigil schemas under `schema/` are the contract: `vigil.summary`, `vigil.signal`, `vigil.error`, `vigil.config`, `vigil.overlay`, `vigil.sources`, `vigil.targets`, `vigil.query`, `vigil.health` and `vigil.validate`, each at `v0`. `simplex.probe.v0.schema.json` beside them is a vendored copy of Simplex's own contract, not a Vigil document. A conformance test validates every fixture against them, and the binary never runs the schema validator.
+- Two pairs are held together by the schemas. A health document or a source row with state `ok` has no `detail_code` (absent or null), and an `unavailable` one names a code; a `stale` row may name `source_stale` or nothing. Every slug in a Vigil document starts with a letter, as in config and on the command line. Tests: `internal/schematest` `TestHealthStateDetailCoupling`, `TestSourceStateDetailCoupling`, `TestVerdictStateSeverityCoupling` and `TestDocumentSlugsStartWithALetter`.
 
 ## 11. Configuration
 
@@ -139,12 +145,12 @@ The top-level keys are:
 | `backends` | named backends, each an `id`, a `kind` (`prom` or `grafana`) and an optional `vantage` slug (section 17); duplicate ids are refused |
 | `sources` | informational documents: `scry` or `cubit`, each with a `path_ref` |
 | `queries` | named queries (section 7) |
-| `freshness` | `stale_after`, default 120s |
+| `freshness` | `stale_after` (default 120s), `skew_budget` (1s to 300s, default 10s) and `declaration_grace_s` (whole seconds, 0 to 86400, default 240); the loader fills each one left out |
 | `tokens` | `read_file` and `signal_file`, the token file locations (section 6) |
 
 Named backends and named queries come from config only. No config field takes a URL, an address or a selector: a backend's address lives in the off-repo overlay (`vigil.overlay/v0`), keyed by the backend ids declared here. A locator (`path_ref`, a token file) is an environment reference (`env:NAME`) or an absolute path with no traversal. Fixtures for the refusals: `testdata/config/invalid/no-authorities.yaml`, `authority-unknown.yaml`, `query-url.yaml`, `path-ref-traversal.yaml`.
 
-Tests: `internal/config` `TestConfigFixtures`, `TestRefusals` (a duplicate backend id and a duplicate query name among them), `TestListenSpellings`, `TestDefaults` and `TestBind`, and `FuzzConfig`. In `cmd/vigil`, `TestWildcardListenIsStartupFailure` shows a wildcard listen stops a backend command with exit 5 before any call, and `TestConfigErrorsDoNotEchoValues` and `TestConfigFailureNeverEchoesAHostileField` show the loader's own text, which can quote a value, never reaches stderr.
+Tests: `internal/config` `TestConfigFixtures`, `TestRefusals` (a duplicate backend id and a duplicate query name among them), `TestListenSpellings`, `TestDefaults`, `TestFreshnessDefaults`, `TestFreshnessRefusals` and `TestBind`, and `FuzzConfig`. In `cmd/vigil`, `TestWildcardListenIsStartupFailure` shows a wildcard listen stops a backend command with exit 5 before any call, and `TestConfigErrorsDoNotEchoValues` and `TestConfigFailureNeverEchoesAHostileField` show the loader's own text, which can quote a value, never reaches stderr.
 
 ## 12. Backends and the bounded client
 
@@ -172,7 +178,7 @@ An address never reaches stdout. A Prometheus target carries several (`scrapeUrl
 - `instance` becomes a slug through the overlay's `hosts[]` (section 17). An instance with no match prints as `unmapped`, even when the query was run with `--host`; the raw value is never shown.
 - `job` passes only if it has the shape of a slug. Any other value prints as `redacted`.
 - `health` and `lastScrape` pass in their schema shapes: a lowercase health word and an RFC 3339 time.
-- `prom query` carries `host` and `job` from the returned labels, by the same two rules, and a sample `value` that must be a number as Prometheus reports it (a decimal, an exponent, `NaN` or an infinity). A label other than those two is dropped.
+- `prom query` carries `host` and `job` from the returned labels, by the same two rules, and a sample `value` that must be a number as Prometheus reports it (a decimal, an exponent, `NaN` or an infinity). `vigil.query/v0` bounds that string at 512 characters, above the 327 of the longest float64 written in plain decimal (`TestQueryValueLength`). A label other than those two is dropped.
 
 The schemas back the rules from the other side. `vigil.targets/v0` and `vigil.query/v0` give `host` the slug pattern and `value` the number pattern, so a document that carries an address or a name in those fields does not validate. Fixtures: `testdata/targets/invalid/job-address.json`, `testdata/query/invalid/value-address.json`, `value-name.json` and `value-url.json`.
 
@@ -287,3 +293,32 @@ Each directory holds `valid/` and `invalid/` documents, validated against the sc
 | `testdata/render/` | none | the table goldens for the four documents, pinned by `internal/render` `TestRenderGoldens` |
 
 Recorded backend answers are not fixtures of Vigil's documents: they sit beside the code that decodes them, under `internal/promclient/testdata/prom/` and `internal/grafana/testdata/grafana/`, and use slugs and `example.invalid` only.
+
+## 20. Freshness and declaration fields in the summary
+
+Every field here is optional in `vigil.summary/v0`, so a document without them stays valid.
+
+| Field | Where | Meaning |
+| --- | --- | --- |
+| `received_at` | each verdict and source | when Vigil first saw the document (section 9), or null when it read none |
+| `valid_for` | each verdict and source | the producer's own value in seconds as published, not `eff_valid_for`; null when the document has none |
+| `declaration` | each verdict and source | the digest the witness document carries, or null when it declares none |
+| `declaration` | top level | Vigil's own configured digest, the reference, or null |
+| `declaration_drift` | top level | the comparison below |
+
+The reference is Vigil's own `declaration`, never a majority among the witnesses. Only fresh documents are compared: authorities and informational sources alike. A stale or unavailable one says nothing about what is deployed now.
+
+`declaration_drift` has five fields, all required when it is present:
+
+| Field | Meaning |
+| --- | --- |
+| `reference` | Vigil's digest, or null |
+| `in_grace` | true while the grace window is open: `freshness.declaration_grace_s` seconds from the change of Vigil's own declaration |
+| `drifted` | true when a fresh, declared document carries a digest other than `reference`, inside the window or after it. With a null `reference` there is nothing to compare, so it is false |
+| `undeclared` | the witnesses whose fresh document has a null digest. They are not drift |
+| `by_declaration` | one entry per distinct digest among the fresh, declared documents, the reference's own included: `{"declaration": "sha256:...", "subjects": [...]}`, where `subjects` are witness ids and each witness appears once |
+
+Inside the window drift is a listed fact. Once `drifted` is true and `in_grace` is false, the drift cap of section 1 applies, and each drifted authority's verdict gains the reason `declaration_drift`; an informational witness has no verdict and shows in `by_declaration` only. Drift never gives RED, never changes a verdict's severity, and never turns a null `overall` into a colour.
+
+Tests: `internal/schematest` `TestSummaryFreshnessAndDriftFields` and `TestFreshnessDefaultsMatchTheLoader`.
+

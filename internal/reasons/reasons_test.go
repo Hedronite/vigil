@@ -6,8 +6,8 @@ import (
 )
 
 func TestOwnReasonsMatchPattern(t *testing.T) {
-	if len(Own) != 5 {
-		t.Fatalf("Own has %d codes, want 5", len(Own))
+	if len(Own) != 6 {
+		t.Fatalf("Own has %d codes, want 6", len(Own))
 	}
 	for _, r := range Own {
 		if !Valid(r) {

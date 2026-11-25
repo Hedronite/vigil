@@ -1,0 +1,15 @@
+{
+  "apiVersion": "vigil.query/v0",
+  "backend": "prom",
+  "vantage": "9lab",
+  "name": "up_by_host",
+  "host": "core",
+  "evaluated_at": "2026-11-14T09:00:00Z",
+  "series": [
+    {
+      "host": "core",
+      "job": "node",
+      "value": "1"
+    }
+  ]
+}
