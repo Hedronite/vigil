@@ -91,3 +91,17 @@ jobs:
       - name: depguard self-test
         shell: bash
         run: scripts/depguard-selftest.sh
+
+  vendor:
+    name: vendor
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Vendored files match SOURCE and the upstream commit
+        shell: bash
+        run: bash scripts/check-vendor.sh
