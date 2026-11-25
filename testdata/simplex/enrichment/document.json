@@ -1,0 +1,29 @@
+{
+  "apiVersion": "simplex.probe/v0",
+  "generated_at": "2026-11-13T18:00:00Z",
+  "observed": true,
+  "valid_for": 120,
+  "declaration": null,
+  "vantage": {"id": "lab", "status": "unchecked"},
+  "overall": "GREEN",
+  "hosts": [
+    {"id": "core", "severity": "GREEN", "reasons": ["tcp_connect_ok", "ts_peer_offline"]},
+    {"id": "edge", "severity": "GREEN", "reasons": ["tcp_connect_ok", "ts_path_relayed", "ts_peer_online"]},
+    {"id": "lab", "severity": "GREEN", "reasons": ["tcp_connect_ok", "ts_peer_unmatched"]},
+    {"id": "spoke", "severity": "GREEN", "reasons": ["tcp_connect_ok", "ts_path_direct", "ts_peer_online"]}
+  ],
+  "checks": [
+    {"host": "core", "kind": "ts_reach", "target": ":9100", "result": "up",
+     "severity": "GREEN", "expected": "light",
+     "reasons": ["tcp_connect_ok", "ts_peer_offline"]},
+    {"host": "edge", "kind": "ts_reach", "target": ":9100", "result": "up",
+     "severity": "GREEN", "expected": "light",
+     "reasons": ["tcp_connect_ok", "ts_path_relayed", "ts_peer_online"]},
+    {"host": "lab", "kind": "ts_reach", "target": ":9100", "result": "up",
+     "severity": "GREEN", "expected": "light",
+     "reasons": ["tcp_connect_ok", "ts_peer_unmatched"]},
+    {"host": "spoke", "kind": "ts_reach", "target": ":9100", "result": "up",
+     "severity": "GREEN", "expected": "light",
+     "reasons": ["tcp_connect_ok", "ts_path_direct", "ts_peer_online"]}
+  ]
+}

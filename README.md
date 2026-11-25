@@ -1,21 +1,34 @@
 # Vigil (Go HTTP ops surface)
 
-Vigil turns the health of a mesh into one document, `vigil.summary/v0`, that a
-person, an agent or Facet can read without knowing where anything lives.
+Vigil is a Go CLI over named ops backends (Prometheus, Grafana). In planned V2
+and V3 releases (not yet shipped), Vigil will turn the health of a mesh into
+one document, `vigil.summary/v0`, that a person, an agent or Facet can read
+without knowing where anything lives.
 
-What Vigil does:
+What Vigil does today (V1):
 
-- Combines the verdicts of named **authorities** (Simplex today, Augur once its
-  Vigil fields land) into one `overall` severity. Vigil re-derives nothing: an
-  authority owns its rules, Vigil owns the combination.
 - Queries named **backends** (Prometheus, Grafana) through names in its
-  config. No command or route takes a URL, a selector or PromQL.
-- Accepts ephemeral **signals** from authenticated callers. A signal is
-  information, never a verdict.
+  config (`prom targets`, `prom query`, `grafana health`, `sources`). No
+  command takes a URL, a selector or PromQL.
+- Validates `vigil.config/v0` and `vigil.overlay/v0` files strictly without
+  probing (`validate`).
+
+Planned (V2/V3, not yet shipped):
+
+- **V2 (not yet shipped):** will combine the verdicts of named **authorities**
+  (Simplex, Augur) into one `overall` severity in `vigil.summary/v0`. Vigil
+  will re-derive nothing: an authority owns its rules, Vigil owns the
+  combination.
+- **V3 (not yet shipped):** will accept ephemeral **signals** from
+  authenticated callers over a loopback HTTP listener (`vigil serve`). A signal
+  is information, never a verdict.
 
 What Vigil does not do: it is not a prober (it never dials a host), it offers
 no free-form PromQL, it has no web UI (Grafana stays the deep-metrics UI,
 Facet is the chrome), and it never computes severity from raw data.
+
+The planned shape. Only the named backend queries exist today; the rest
+arrives with V2 and V3:
 
 ```
 Simplex ──verdict document (file)──────▶            ──vigil.summary/v0 (pull, read token)──▶ Facet
@@ -23,12 +36,14 @@ Augur   ──verdict document (file)──────▶  Vigil  ◀──vigi
 prom (lab) · grafana (lab) ──named──▶          Cubit / Scry ──▶ informational blocks
 ```
 
-## Reading a summary (V2)
+## Reading a summary (V2 — planned, not yet shipped)
 
-The summary document is a single JSON object with an `apiVersion`. Consumers
-refuse an unknown major version; fields are additive within `v0`.
+Everything in this section describes planned V2 behaviour. The
+`vigil.summary/v0` document is not emitted by the current binary yet; once V2
+ships, it will be a single JSON object with an `apiVersion`.
+Consumers refuse an unknown major version; fields are additive within `v0`.
 
-- `overall` is the worst severity among the readable verdicts in
+- `overall` will be the worst severity among the readable verdicts in
   `verdicts[]`, after two caps and nothing else. Stale cap: a stale verdict
   counts as at least YELLOW. Missing-authority cap: while any configured
   authority is unavailable, `overall` is at least YELLOW. If no authority is
@@ -70,7 +85,8 @@ Two presentation rules hold everywhere (CLI table, Facet, agents):
 | `vigil prom query <name>` | V1 | run a named query from config; host slug is the only variable |
 | `vigil grafana health` | V1 | health of the named grafana backend; never gates `overall` |
 | `vigil sources` | V1 | one row per configured backend with its reachability |
-| `vigil serve` | V3 | loopback HTTP listener for the summary document |
+| `vigil validate` | V1 | validate config and optional overlay without probing |
+| `vigil serve` | V3 (planned, not yet shipped) | loopback HTTP listener for the summary document |
 
 ## Flags
 
@@ -95,8 +111,9 @@ absent renders as a dash.
 
 ## Exit codes
 
-Codes 0 to 2 are verdicts: the document was built and its severity is the
-code. Codes 3 and up are errors: no verdict was produced. No error path ever
+Codes 0 to 2 are reserved for verdicts: the document was built and its
+severity is the code. Verdicts arrive with the V2 summary; the commands shipped
+today exit 0 when they succeed. Codes 3 and up are errors: no verdict was produced. No error path ever
 exits 0, 1 or 2. Only that split is shared across the family; this table is
 Vigil's own.
 
@@ -110,7 +127,7 @@ Vigil's own.
 | 5 | auth, startup or bind failure |
 | 6 | internal error (panic recovered) |
 
-For the V1 backend commands, the mapping per command:
+For the V1 commands, the mapping per command:
 
 | Command | 0 | 3 | 4 |
 | --- | --- | --- | --- |
@@ -118,6 +135,7 @@ For the V1 backend commands, the mapping per command:
 | `prom query` | answered | usage, config, or a rejected query (`query_rejected`, `missing_host`, `unexpected_host`) | unreachable, `series_cap`, `query_warnings`, timeout, body cap |
 | `grafana health` | healthy (`database: ok`) | usage or config | unhealthy or unreachable (`not_health`, `http_status`, timeout) |
 | `sources` | rendered — row states are data | usage or config | never |
+| `validate` | the files are valid | missing `--config`, invalid config or overlay | never |
 
 Two query rules sit on exit 3: the config's `{{.host}}` placeholder needs
 `--host` (`missing_host`), and `--host` is refused when the expr has no
@@ -134,7 +152,7 @@ in the config is exit 5 for every command.
   the output.
 - `prom query` runs exactly one named query from the config. The host slug is
   the only template variable and `--host` must be a slug the overlay's
-  `hosts[]` defines.
+  `hosts[]` defines; the expr receives the first instance label listed for it.
   The request asks for one series more than the cap, so more results fail
   with `series_cap` instead of a truncated answer; any backend warning fails
   with `query_warnings` instead of a partial answer. Every result carries the
@@ -148,7 +166,11 @@ in the config is exit 5 for every command.
 
 ## Security model
 
-- The listener binds `127.0.0.1:10082` by default. A wildcard address is
+The HTTP listener and token checks below apply to the planned V3 `vigil serve`
+listener (not yet shipped); the current V1 CLI already enforces wildcard
+`listen` rejection, path-only locators and address-free overlay binding.
+
+- The listener will bind `127.0.0.1:10082` by default. A wildcard address is
   rejected in every spelling; a non-loopback bind needs `--allow-nonloopback`
   and one explicit address. A bracketed IPv6 `listen` value must be quoted in
   YAML: `listen: "[::1]:10082"`.
@@ -170,22 +192,24 @@ example; a real overlay is never committed); the overlay's `hosts[]` maps the
 instance labels a backend reports onto the slugs it prints. Both examples validate
 against the JSON Schemas under `schema/`.
 
-`overall` is the worst severity among the readable verdicts in `verdicts[]`,
-after two caps and nothing else; with one authority and no cap in play,
-`overall` is that authority's published severity, and a stale GREEN gives
-YELLOW. Adding a configured authority can keep `overall` or make it worse,
-never better. Vigil adds no second opinion of its own.
+In planned V2, `overall` will be the worst severity among the readable
+verdicts in `verdicts[]`, after two caps and nothing else; with one authority
+and no cap in play, `overall` will be that authority's published severity, and
+a stale GREEN will give YELLOW. Adding a configured authority will keep
+`overall` or make it worse, never better. Vigil will add no second opinion of
+its own.
 
 ## Documents
 
 | Document | File | Role |
 | --- | --- | --- |
-| `vigil.summary/v0` | `schema/vigil.summary.v0.schema.json` | the single produced document (V2) |
+| `vigil.summary/v0` | `schema/vigil.summary.v0.schema.json` | the single produced document (V2, planned — not yet shipped) |
 | `vigil.sources/v0` | `schema/vigil.sources.v0.schema.json` | one row per configured backend |
 | `vigil.targets/v0` | `schema/vigil.targets.v0.schema.json` | the prom backend's scrape targets |
 | `vigil.query/v0` | `schema/vigil.query.v0.schema.json` | one named query's answer |
 | `vigil.health/v0` | `schema/vigil.health.v0.schema.json` | the grafana backend's health |
-| `vigil.signal/v0` | `schema/vigil.signal.v0.schema.json` | ephemeral, authenticated POST only (V3) |
+| `vigil.validate/v0` | `schema/vigil.validate.v0.schema.json` | `validate --json` on valid files |
+| `vigil.signal/v0` | `schema/vigil.signal.v0.schema.json` | ephemeral, authenticated POST only (V3, planned — not yet shipped) |
 | `vigil.error/v0` | `schema/vigil.error.v0.schema.json` | every non-200 response |
 | `vigil.config/v0` | `schema/vigil.config.v0.schema.json` | YAML config, strict decode |
 | `vigil.overlay/v0` | `schema/vigil.overlay.v0.schema.json` | off-repo addresses and host mapping |

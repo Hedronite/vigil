@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Hedronite/vigil/schema/vigil.validate.v0.schema.json",
+  "title": "vigil.validate/v0",
+  "description": "What `vigil validate --json` prints when the files are valid. A failure prints vigil.error/v0 instead.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "status", "config", "overlay"],
+  "properties": {
+    "apiVersion": { "const": "vigil.validate/v0" },
+    "status": { "const": "ok" },
+    "config": { "const": true },
+    "overlay": { "type": "boolean", "description": "Whether an overlay was given and checked too." }
+  }
+}

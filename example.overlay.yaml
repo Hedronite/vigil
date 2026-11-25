@@ -15,7 +15,8 @@ backends:
 # The hosts[] mapping turns the instance labels a backend reports into the
 # public slugs the output prints. An instance no mapping claims prints as
 # unmapped. An instance is a bare host or a host with a port, exactly as the
-# backend reports it; brackets hold an IPv6 literal.
+# backend reports it; brackets hold an IPv6 literal. A query's {{.host}}
+# becomes the first instance listed for the host.
 hosts:
   - slug: core
     instances:

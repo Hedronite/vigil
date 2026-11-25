@@ -1,0 +1,5 @@
+apiVersion: vigil.config/v0
+declaration: 7
+authorities:
+  - id: simplex
+    path_ref: env:VIGIL_SIMPLEX_PATH

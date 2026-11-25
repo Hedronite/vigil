@@ -58,12 +58,12 @@ Producer and consumer config schemas admit the optional top-level `declaration` 
 
 ### `observed: false` per-tool semantics
 
-`observed: false` means the document carries no first-hand observation of its subjects. It is never GREEN. A producer whose `v0` schema requires a colour keeps its existing fail-closed colour on such a document (Simplex: YELLOW with `probe_unknown` / `vantage_blind`; Augur: YELLOW with `alertmanager_unreachable`, RED with `observability_blind` past the dead-man window). A producer whose colour is optional omits it (Scry `severity`); Cubit carries none. Consumers treat the colour of an `observed: false` document as a statement about the producer's own sight, never as evidence about the subjects it names, and never combine it as GREEN.
+`observed: false` means the document carries no first-hand observation of its subjects. It is never GREEN. A producer whose `v0` schema requires a colour keeps its existing fail-closed colour on such a document (Simplex: YELLOW with `probe_unknown`, RED with `vantage_blind`; Augur: YELLOW with `alertmanager_unreachable`, RED with `observability_blind` past the dead-man window). A producer whose colour is optional omits it (Scry `severity`); Cubit carries none. Consumers treat the colour of an `observed: false` document as a statement about the producer's own sight, never as evidence about the subjects it names, and never combine it as GREEN.
 
 | Witness | `observed: false` condition | Notes |
 | --- | --- | --- |
 | `scry` | Probe could not observe cluster | Existing meaning unchanged (`severity` omitted). |
-| `simplex` | Every check is `unknown` | Vantage is blind (`probe_unknown` / `vantage_blind`). |
+| `simplex` | Vantage is blind, or every check is `unknown` and `overall` is not GREEN | A blind vantage is RED (`vantage_blind`); unknown probes are YELLOW (`probe_unknown`). Exception: when the vantage is not blind and every check is `unknown` yet `overall` is GREEN (all checks expected dark or held), `observed` is `true`, because the silence matched the expectation. |
 | `cubit` | Exit `2` / no configured root usable | Scanner could not inspect any declared root (carries no colour). |
 | `augur` | Alertmanager unreachable, poll failed, or `alerts_over_cap` | No fresh alert poll evaluated (`alerts_over_cap` is a failed poll that evaluates no alerts). |
 

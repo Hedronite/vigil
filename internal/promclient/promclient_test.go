@@ -482,3 +482,85 @@ func TestInFlightBound(t *testing.T) {
 		t.Fatalf("peak in flight = %d, want at most 2", got)
 	}
 }
+
+func TestB2_UnmappedSeriesStaysUnmapped(t *testing.T) {
+	const oneSeries = `{"status":"success","data":{"resultType":"vector","result":[{"metric":{"instance":"stranger.example.invalid:9100","job":"node"},"value":[1763107200,"1"]}]}}`
+	srv := serveBody(t, oneSeries)
+	cfg, ov := fixtureConfig(t, srv.URL)
+	doc, err := promclient.Query(context.Background(), cfg, ov, "up_by_host", "spoke", fixedNow)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(doc.Series) != 1 || doc.Series[0].Host != "unmapped" {
+		t.Fatalf("unmapped series was labelled %+v", doc.Series)
+	}
+}
+
+func TestB3_HostPlaceholderUsesInstanceMap(t *testing.T) {
+	const oneSeries = `{"status":"success","data":{"resultType":"vector","result":[{"metric":{"instance":"spoke.example.invalid:9100","job":"node"},"value":[1763107200,"1"]}]}}`
+	var mu sync.Mutex
+	var sent string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		sent = r.URL.Query().Get("query")
+		mu.Unlock()
+		w.Header().Set("Content-Type", "application/json")
+		if _, err := w.Write([]byte(oneSeries)); err != nil {
+			t.Error(err)
+		}
+	}))
+	t.Cleanup(srv.Close)
+	cfg, ov := fixtureConfig(t, srv.URL)
+	doc, err := promclient.Query(context.Background(), cfg, ov, "up_by_host", "spoke", fixedNow)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mu.Lock()
+	gotQuery := sent
+	mu.Unlock()
+	if !strings.Contains(gotQuery, "spoke.example.invalid:9100") {
+		t.Fatalf("Prometheus was asked for %q, want mapped instance", gotQuery)
+	}
+	if len(doc.Series) != 1 || doc.Series[0].Host != "spoke" {
+		t.Fatalf("series = %+v, want spoke", doc.Series)
+	}
+
+	// Host in overlay with zero instances fails closed as unknown_host.
+	ov.Hosts[1].Instances = nil
+	_, err = promclient.Query(context.Background(), cfg, ov, "up_by_host", "spoke", fixedNow)
+	if exit, c := code(t, err); exit != exitcode.Usage || c != "unknown_host" {
+		t.Fatalf("empty instances got %d/%s, want usage/unknown_host", exit, c)
+	}
+}
+
+// With several instance labels for one host, the first listed is the one asked
+// for, and a series under any of them still maps back to the slug.
+func TestHostPlaceholderTakesTheFirstInstance(t *testing.T) {
+	const body = `{"status":"success","data":{"resultType":"vector","result":[{"metric":{"instance":"second.example.invalid"},"value":[1763107200,"1"]}]}}`
+	var mu sync.Mutex
+	var sent string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		sent = r.URL.Query().Get("query")
+		mu.Unlock()
+		w.Header().Set("Content-Type", "application/json")
+		if _, err := w.Write([]byte(body)); err != nil {
+			t.Error(err)
+		}
+	}))
+	t.Cleanup(srv.Close)
+	cfg, ov := fixtureConfig(t, srv.URL)
+	ov.Hosts[1].Instances = []string{"first.example.invalid:9100", "second.example.invalid"}
+	doc, err := promclient.Query(context.Background(), cfg, ov, "up_by_host", ov.Hosts[1].Slug, fixedNow)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if !strings.Contains(sent, "first.example.invalid:9100") || strings.Contains(sent, "second.example.invalid") || strings.Contains(sent, "{{") {
+		t.Fatalf("asked for %q", sent)
+	}
+	if len(doc.Series) != 1 || doc.Series[0].Host != ov.Hosts[1].Slug {
+		t.Fatalf("series = %+v", doc.Series)
+	}
+}
