@@ -1,6 +1,7 @@
 package schematest_test
 
 import (
+	"encoding/json"
 	"math"
 	"path/filepath"
 	"strconv"
@@ -25,6 +26,26 @@ type absent struct{}
 type edit struct {
 	path  string
 	value any
+}
+
+// clone copies the containers in a value. apply inserts a copy, so a later edit
+// inside an inserted object cannot reach another case built from the same one.
+func clone(v any) any {
+	switch node := v.(type) {
+	case map[string]any:
+		out := make(map[string]any, len(node))
+		for k, item := range node {
+			out[k] = clone(item)
+		}
+		return out
+	case []any:
+		out := make([]any, len(node))
+		for i, item := range node {
+			out[i] = clone(item)
+		}
+		return out
+	}
+	return v
 }
 
 func apply(t *testing.T, doc any, e edit) {
@@ -53,7 +74,7 @@ func apply(t *testing.T, doc any, e edit) {
 		delete(m, steps[len(steps)-1])
 		return
 	}
-	m[steps[len(steps)-1]] = e.value
+	m[steps[len(steps)-1]] = clone(e.value)
 }
 
 // mutant is one change set to a valid base document. at is empty when the
@@ -328,5 +349,27 @@ func TestFreshnessDefaultsMatchTheLoader(t *testing.T) {
 	}
 	if got := field("declaration_grace_s", "default"); got != float64(config.DefaultDeclarationGraceS) {
 		t.Errorf("declaration_grace_s default = %v, want %d", got, config.DefaultDeclarationGraceS)
+	}
+}
+
+// TestEditsDoNotShareValues: one edit applied to two documents, then changed in
+// one of them, leaves the other and the edit itself alone. Without this a case
+// can write into the next one's document, which makes a control fail at random
+// or a refusal pass for another case's reason.
+func TestEditsDoNotShareValues(t *testing.T) {
+	shared := edit{"block", map[string]any{"list": []any{map[string]any{"id": "lab"}}}}
+	first, second := map[string]any{}, map[string]any{}
+	apply(t, first, shared)
+	apply(t, second, shared)
+	apply(t, first, edit{"block/list/0/id", "9lab"})
+	apply(t, first, edit{"block/extra", true})
+	for name, doc := range map[string]any{"second document": second, "edit": map[string]any{"block": shared.value}} {
+		got, err := json.Marshal(doc)
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		if want := `{"block":{"list":[{"id":"lab"}]}}`; string(got) != want {
+			t.Errorf("%s = %s, want %s", name, got, want)
+		}
 	}
 }
