@@ -4,7 +4,7 @@
 This file is the contract between this repository and any AI coding agents (or human reviewers) working on it.
 
 **Class:** `binary-service`
-**Protocol:** Go-TOPS 0.4.4
+**Protocol:** Go-TOPS 0.4.5
 **Module:** `github.com/Hedronite/vigil`
 **Enforce:** `ratchet`
 
@@ -19,6 +19,12 @@ go tool -modfile=tools/go.mod gotops gate
 
 # Full reports
 go tool -modfile=tools/go.mod gotops report --format text
+
+# The mutation survivor ledger, .go-tops/survivors.yaml. An expired entry fails the gate
+# before it runs, so the order is: expire, gate, explain
+go tool -modfile=tools/go.mod gotops survivors expire
+go tool -modfile=tools/go.mod gotops survivors list
+go tool -modfile=tools/go.mod gotops survivors explain <key> --reason "<why, three words or more>" --owner <handle> --expires <YYYY-MM-DD>
 ```
 
 ## Floors (this class)
@@ -36,7 +42,7 @@ go tool -modfile=tools/go.mod gotops report --format text
 1. Write the oracle from the contract before the code.
 2. Never split a function only to lower its CRAP score (scar-guard).
 3. Never weaken a law, linter config, or threshold to make a change pass.
-4. Explain every accepted mutation survivor (reason, owner, expiry).
+4. Explain every accepted mutation survivor (reason, owner, expiry). Kill it with a test first; accept it only when no test can tell it from the original, or one is owed.
 5. No `//nolint` without the linter name and a reason; no `//tops:ack` without a reason and an owner.
 6. Agent-authored code meets the same gate and the same CRAP cap as human code.
 7. Do not edit generated files; fix the generator.

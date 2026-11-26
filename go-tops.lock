@@ -1,6 +1,6 @@
 # Pins for the Go toolchain and the downloaded binaries (GO_TOPS.md §10).
 # Written by gotops init from the kit's pins; change it with a reviewed gotops lock --update.
-protocol: "0.4.4"
+protocol: "0.4.5"
 toolchain: go1.27.4
 
 trust:
