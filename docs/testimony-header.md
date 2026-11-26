@@ -98,7 +98,7 @@ Within a single repository, Admit and Emit may land in one PR once internal fixt
 
 ## 4. Consumer freshness and drift summary
 
-Downstream V2 summary evaluation applies pure functions over stored witness documents and Vigil's local clock (note that the integer-seconds requirement above applies to emitted header fields such as `valid_for`, whereas Vigil's own config keeps duration strings such as `stale_after`, `skew_budget`, and `declaration_grace`):
+Downstream V2 summary evaluation applies pure functions over stored witness documents and Vigil's local clock (note that the integer-seconds requirement above applies to emitted header fields such as `valid_for`, whereas Vigil's own config keeps duration strings such as `stale_after` and `skew_budget`, and sets the grace window as `declaration_grace_s` in integer seconds):
 
 - **`received_at`.** Vigil records its local clock at the first sighting of a document with a new `(generated_at, sha256(body))` pair. A file whose timestamp and body do not change keeps its original `received_at` and ages normally.
 - **Dual freshness check.** A document is fresh if and only if both conditions hold:
@@ -108,6 +108,8 @@ Downstream V2 summary evaluation applies pure functions over stored witness docu
 - **Reference-based `declaration_drift`.**
   - The reference hash is Vigil's own `declaration` from its config (never a majority vote across witnesses).
   - Drift occurs when any fresh, declared witness document carries a `declaration` differing from Vigil's reference.
-  - Within the configured grace window (`declaration_grace`, config duration string, default `2 *` the longest producer interval) after Vigil's own `declaration` changes, drift is recorded as an informational fact. After the grace window expires, drift maps to `YELLOW` and never `RED`.
+  - Within the configured grace window (`declaration_grace_s`, integer seconds, default `240`) after Vigil's own `declaration` changes, drift is recorded as an informational fact. After the window closes, an authority's drift maps to `YELLOW` and never `RED`.
+  - An informational source's drift is listed and never colours the summary.
+  - A one-shot read keeps no record of when Vigil's `declaration` changed, so it has no grace window.
   - Documents with `declaration: null` are counted as `undeclared`, not as drift.
   - Summary output lists the sources and authorities observed on each declaration hash.

@@ -1,0 +1,26 @@
+OVERALL         YELLOW
+GENERATED_AT    2026-11-13T18:00:00Z
+VANTAGE         lab
+VANTAGE_STATUS  ok
+DECLARATION     sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+
+SOURCE   STATE  SEVERITY  OBSERVED_AT           AGE  RECEIVED_AT           VALID_FOR  DECLARATION                                                              REASONS
+simplex  ok     GREEN     2026-11-13T18:00:00Z  0s   2026-11-13T18:00:00Z  60         sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb  clock_skew,declaration_drift
+
+HOST   SEVERITY  REASONS
+edge   GREEN     -
+lab    GREEN     -
+spoke  GREEN     expected_dark,tcp_connect_refused,tcp_connect_ok
+
+ID       KIND     STATE  OBSERVED_AT           LAST_OK               VANTAGE
+simplex  simplex  ok     2026-11-13T18:00:00Z  2026-11-13T18:00:00Z  -
+prom     prom     ok     -                     -                     lab
+
+DRIFTED     true
+IN_GRACE    false
+REFERENCE   sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+UNDECLARED  cubit
+
+DECLARATION                                                              SUBJECTS
+sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa  scry
+sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb  augur,simplex

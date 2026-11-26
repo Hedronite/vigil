@@ -80,7 +80,7 @@ It needs the network; `--offline` skips only the upstream half, and is refused i
 - **No URL input.** No flag, route, config value or document field makes Vigil fetch a URL, take a selector, or send free-form PromQL.
 - **No `os/exec`** in non-test code, and no schema validator in the binary. The linter enforces both.
 - **One HTTP client.** Every call to a backend goes through `internal/httpx`: GET only, no redirect, no proxy, a body cap, a deadline, two calls in flight per backend. The linter rejects `net/http` anywhere else in non-test code.
-- **Severity comes from authorities.** Vigil combines verdicts and applies the stale and missing-authority caps. It does not compute severity from raw data.
+- **Severity comes from authorities.** Vigil combines verdicts and applies the stale, missing-authority and declaration-drift caps. It does not compute severity from raw data.
 - **Aliases only.** Fixtures, docs and examples use neutral host aliases (`core`, `spoke`, `depot`, `annex`, `lab`, `edge`) and `example.invalid`, never real machine names. No IP addresses, hostnames or secrets. Placeholders use reserved documentation values. An operator's real slugs and addresses live only in their untracked, off-repo overlay.
 - **Schemas are the contract.** JSON Schemas under `schema/` are written by hand. A change that adds a field is additive within `v0`; anything that removes or renames one needs a new major.
 - **Hermetic tests.** Table-driven, `httptest` for every backend, no live network, no wall clock (inject the clock).

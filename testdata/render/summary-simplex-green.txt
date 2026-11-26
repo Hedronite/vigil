@@ -1,0 +1,16 @@
+OVERALL         GREEN
+GENERATED_AT    2026-11-13T18:00:00Z
+VANTAGE         lab
+VANTAGE_STATUS  ok
+DECLARATION     -
+
+SOURCE   STATE  SEVERITY  OBSERVED_AT           AGE  REASONS
+simplex  ok     GREEN     2026-11-13T18:00:00Z  0s   -
+
+HOST   SEVERITY  REASONS
+edge   GREEN     -
+lab    GREEN     -
+spoke  GREEN     expected_dark,tcp_connect_refused,tcp_connect_ok
+
+ID       KIND     STATE  OBSERVED_AT           LAST_OK
+simplex  simplex  ok     2026-11-13T18:00:00Z  2026-11-13T18:00:00Z

@@ -1,24 +1,26 @@
 # Vigil (Go HTTP ops surface)
 
-Vigil is a Go CLI over named ops backends (Prometheus, Grafana). In planned V2
-and V3 releases (not yet shipped), Vigil will turn the health of a mesh into
-one document, `vigil.summary/v0`, that a person, an agent or Facet can read
-without knowing where anything lives.
+Vigil is a Go CLI over named ops backends (Prometheus, Grafana) and the verdict
+documents its authorities publish. It turns the health of a mesh into one
+document, `vigil.summary/v0`, that a person, an agent or Facet can read without
+knowing where anything lives. Today it builds that document from Simplex on the
+command line; serving it over HTTP is planned for V3 (not yet shipped).
 
-What Vigil does today (V1):
+What Vigil does today (V1 and V2):
 
 - Queries named **backends** (Prometheus, Grafana) through names in its
   config (`prom targets`, `prom query`, `grafana health`, `sources`). No
   command takes a URL, a selector or PromQL.
 - Validates `vigil.config/v0` and `vigil.overlay/v0` files strictly without
   probing (`validate`).
+- Combines the verdict document Simplex publishes into one `overall` severity
+  in `vigil.summary/v0` (`simplex summary`). Vigil re-derives nothing: an
+  authority owns its rules, Vigil owns the combination.
 
-Planned (V2/V3, not yet shipped):
+Planned (not yet shipped):
 
-- **V2 (not yet shipped):** will combine the verdicts of named **authorities**
-  (Simplex, Augur) into one `overall` severity in `vigil.summary/v0`. Vigil
-  will re-derive nothing: an authority owns its rules, Vigil owns the
-  combination.
+- **Augur as a second authority (not yet shipped):** a configured `augur`
+  authority is accepted by the config and not read yet.
 - **V3 (not yet shipped):** will accept ephemeral **signals** from
   authenticated callers over a loopback HTTP listener (`vigil serve`). A signal
   is information, never a verdict.
@@ -27,8 +29,8 @@ What Vigil does not do: it is not a prober (it never dials a host), it offers
 no free-form PromQL, it has no web UI (Grafana stays the deep-metrics UI,
 Facet is the chrome), and it never computes severity from raw data.
 
-The planned shape. Only the named backend queries exist today; the rest
-arrives with V2 and V3:
+The planned shape. Today the named backend queries exist, and so does the path
+from Simplex to a summary; the rest arrives later:
 
 ```
 Simplex ──verdict document (file)──────▶            ──vigil.summary/v0 (pull, read token)──▶ Facet
@@ -36,24 +38,24 @@ Augur   ──verdict document (file)──────▶  Vigil  ◀──vigi
 prom (lab) · grafana (lab) ──named──▶          Cubit / Scry ──▶ informational blocks
 ```
 
-## Reading a summary (V2 — planned, not yet shipped)
+## Reading a summary
 
-Everything in this section describes planned V2 behaviour. The
-`vigil.summary/v0` document is not emitted by the current binary yet; once V2
-ships, it will be a single JSON object with an `apiVersion`.
-Consumers refuse an unknown major version; fields are additive within `v0`.
+`vigil simplex summary` emits `vigil.summary/v0`: a single JSON object with an
+`apiVersion`. Consumers refuse an unknown major version; fields are additive
+within `v0`. Serving it over HTTP is V3 (not yet shipped).
 
-- `overall` will be the worst severity among the readable verdicts in
-  `verdicts[]`, after two caps and nothing else. Stale cap: a stale verdict
-  counts as at least YELLOW. Missing-authority cap: while any configured
-  authority is unavailable, `overall` is at least YELLOW. If no authority is
-  readable, `overall` is null. A reader renders null as unavailable — null is
-  never GREEN.
-- `verdicts[]` says which authority said what: one entry per configured
-  authority with its own `state` (`ok`, `stale`, `unavailable`), the severity
+- `overall` is the worst severity among the readable verdicts in
+  `verdicts[]`, after three caps and nothing else. Stale cap: a stale verdict
+  counts as at least YELLOW. Missing-authority cap: while an authority the
+  summary evaluates is unavailable, `overall` is at least YELLOW. Drift cap:
+  while an authority is on another watch declaration past the grace window,
+  `overall` is at least YELLOW. If no authority is readable, `overall` is null.
+  A reader renders null as unavailable — null is never GREEN.
+- `verdicts[]` says which authority said what: one entry per authority
+  evaluated (Simplex only today) with its own `state` (`ok`, `stale`, `unavailable`), the severity
   as published, the reasons — Vigil's own codes (`source_stale`,
   `source_unavailable`, `schema_major`, `clock_skew`,
-  `authority_unavailable`) plus any authority-level reasons the authority
+  `authority_unavailable`, `declaration_drift`) plus any authority-level reasons the authority
   publishes, passed through unchanged — and `observed_at`. Simplex publishes
   no authority-level reasons, so today the verdict reasons are Vigil's codes
   only; Simplex's per-host reasons live in `hosts[].reasons`. This is how
@@ -86,6 +88,7 @@ Two presentation rules hold everywhere (CLI table, Facet, agents):
 | `vigil grafana health` | V1 | health of the named grafana backend; never gates `overall` |
 | `vigil sources` | V1 | one row per configured backend with its reachability |
 | `vigil validate` | V1 | validate config and optional overlay without probing |
+| `vigil simplex summary` | V2 | one summary from the Simplex document; the exit code is the verdict |
 | `vigil serve` | V3 (planned, not yet shipped) | loopback HTTP listener for the summary document |
 
 ## Flags
@@ -105,15 +108,16 @@ Two presentation rules hold everywhere (CLI table, Facet, agents):
 Every command renders the same document two ways: the human table (default)
 and the document alone with `--json`. `--json` is one line and byte-stable —
 the same document always produces the same bytes. A failure prints one
-`vigil.error/v0` JSON line on stderr and nothing on stdout. A table never
+`vigil.error/v0` JSON line on stderr and nothing on stdout. A verdict is not a
+failure: `simplex summary` prints its document when it exits 1, 2 or 4. A table never
 prints a field the document lacks; a value the document carries as null or
-absent renders as a dash.
+absent renders as a dash, except a null `overall`, which reads `unavailable`.
 
 ## Exit codes
 
 Codes 0 to 2 are reserved for verdicts: the document was built and its
-severity is the code. Verdicts arrive with the V2 summary; the commands shipped
-today exit 0 when they succeed. Codes 3 and up are errors: no verdict was produced. No error path ever
+severity is the code. `simplex summary` exits with its verdict; the other
+commands exit 0 when they succeed. Codes 3 and up carry no verdict. No error path ever
 exits 0, 1 or 2. Only that split is shared across the family; this table is
 Vigil's own.
 
@@ -136,6 +140,9 @@ For the V1 commands, the mapping per command:
 | `grafana health` | healthy (`database: ok`) | usage or config | unhealthy or unreachable (`not_health`, `http_status`, timeout) |
 | `sources` | rendered — row states are data | usage or config | never |
 | `validate` | the files are valid | missing `--config`, invalid config or overlay | never |
+
+`simplex summary` exits 0, 1 or 2 with the document's `overall`, and 4 when
+`overall` is null, printing the document in each case; usage or config is 3.
 
 Two query rules sit on exit 3: the config's `{{.host}}` placeholder needs
 `--host` (`missing_host`), and `--host` is refused when the expr has no
@@ -167,7 +174,7 @@ in the config is exit 5 for every command.
 ## Security model
 
 The HTTP listener and token checks below apply to the planned V3 `vigil serve`
-listener (not yet shipped); the current V1 CLI already enforces wildcard
+listener (not yet shipped); the current CLI already enforces wildcard
 `listen` rejection, path-only locators and address-free overlay binding.
 
 - The listener will bind `127.0.0.1:10082` by default. A wildcard address is
@@ -192,18 +199,17 @@ example; a real overlay is never committed); the overlay's `hosts[]` maps the
 instance labels a backend reports onto the slugs it prints. Both examples validate
 against the JSON Schemas under `schema/`.
 
-In planned V2, `overall` will be the worst severity among the readable
-verdicts in `verdicts[]`, after two caps and nothing else; with one authority
-and no cap in play, `overall` will be that authority's published severity, and
-a stale GREEN will give YELLOW. Adding a configured authority will keep
-`overall` or make it worse, never better. Vigil will add no second opinion of
-its own.
+`overall` is the worst severity among the readable verdicts in `verdicts[]`,
+after three caps and nothing else; with one authority and no cap in play,
+`overall` is that authority's published severity, and a stale GREEN gives
+YELLOW. Adding an authority to the evaluation keeps `overall` or makes it
+worse, never better. Vigil adds no second opinion of its own.
 
 ## Documents
 
 | Document | File | Role |
 | --- | --- | --- |
-| `vigil.summary/v0` | `schema/vigil.summary.v0.schema.json` | the single produced document (V2, planned — not yet shipped) |
+| `vigil.summary/v0` | `schema/vigil.summary.v0.schema.json` | the combined verdict (`simplex summary`) |
 | `vigil.sources/v0` | `schema/vigil.sources.v0.schema.json` | one row per configured backend |
 | `vigil.targets/v0` | `schema/vigil.targets.v0.schema.json` | the prom backend's scrape targets |
 | `vigil.query/v0` | `schema/vigil.query.v0.schema.json` | one named query's answer |

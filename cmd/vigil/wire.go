@@ -19,11 +19,12 @@ import (
 // pinned clock, print the document.
 func liveHandlers() Handlers {
 	return Handlers{
-		PromTargets:   promTargets,
-		PromQuery:     promQuery,
-		GrafanaHealth: grafanaHealth,
-		Sources:       listSources,
-		Validate:      validateConfig,
+		PromTargets:    promTargets,
+		PromQuery:      promQuery,
+		GrafanaHealth:  grafanaHealth,
+		Sources:        listSources,
+		Validate:       validateConfig,
+		SimplexSummary: simplexSummary,
 	}
 }
 
