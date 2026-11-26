@@ -381,7 +381,7 @@
       "pattern": "^sha256:[0-9a-f]{64}$"
     },
     "declaration_drift": {
-      "description": "Which declaration each fresh witness document was produced under, compared with Vigil's own. Drift past the grace window raises overall to at least YELLOW and never to RED.",
+      "description": "Which declaration each fresh witness document was produced under, compared with Vigil's own. Authority drift past the grace window raises overall from GREEN to YELLOW (never to RED, never overriding null); informational source drift is listed and never colours overall.",
       "type": "object",
       "additionalProperties": false,
       "required": [
