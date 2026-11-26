@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"sync/atomic"
@@ -141,7 +142,6 @@ func TestSimplexSummaryVerdicts(t *testing.T) {
 		{name: "drift", config: summaryConfig + "declaration: " + digestA + "\n", doc: declare(digestB), exit: 1, overall: "YELLOW", state: "ok", reasons: []string{"declaration_drift"}},
 		{name: "drift has no grace window here", config: summaryConfig + "declaration: " + digestA + "\nfreshness:\n  declaration_grace_s: 86400\n", doc: declare(digestB), exit: 1, overall: "YELLOW", state: "ok", reasons: []string{"declaration_drift"}},
 		{name: "no reference, no drift", doc: declare(digestB), exit: 0, overall: "GREEN", state: "ok", reasons: []string{}},
-		{name: "augur is not read yet", config: summaryConfig + "  - id: augur\n    path_ref: env:VIGIL_TEST_UNSET\n", exit: 0, overall: "GREEN", state: "ok", reasons: []string{}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -171,6 +171,105 @@ func TestSimplexSummaryVerdicts(t *testing.T) {
 			}
 			if doc.DeclarationDrift == nil || doc.DeclarationDrift.InGrace {
 				t.Errorf("drift = %+v, want a block with no grace window", doc.DeclarationDrift)
+			}
+		})
+	}
+}
+
+const augurAuthority = "  - id: augur\n    path_ref: env:VIGIL_TEST_AUGUR\n"
+
+// withoutAdditive drops the members the summary goldens predate.
+func withoutAdditive(t *testing.T, body []byte) map[string]any {
+	t.Helper()
+	var doc map[string]any
+	if err := json.Unmarshal(body, &doc); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	objects := []map[string]any{doc}
+	for _, list := range []string{"verdicts", "sources"} {
+		items, isList := doc[list].([]any)
+		if !isList {
+			t.Fatalf("%s is not a list", list)
+		}
+		for _, item := range items {
+			entry, isObject := item.(map[string]any)
+			if !isObject {
+				t.Fatalf("%s holds a non-object", list)
+			}
+			objects = append(objects, entry)
+		}
+	}
+	for _, object := range objects {
+		for _, key := range []string{"received_at", "valid_for", "declaration", "declaration_drift"} {
+			delete(object, key)
+		}
+	}
+	return doc
+}
+
+// TestSimplexSummaryConfiguredAugur: every configured authority is in the
+// document. Augur has no reader yet, so it is unavailable and holds overall at
+// YELLOW; it is never left out, and its file is never opened.
+func TestSimplexSummaryConfiguredAugur(t *testing.T) {
+	publish(t, vendoredDoc(t, "green"), generated)
+	// A readable file on the augur path_ref changes nothing.
+	t.Setenv("VIGIL_TEST_AUGUR", writeText(t, pathMarker, vendoredDoc(t, "green")))
+
+	t.Run("matches the augur-unavailable golden", func(t *testing.T) {
+		code, _, out := summarise(t, summaryConfig+augurAuthority, "--now", "2026-11-13T18:00:00Z")
+		golden, err := os.ReadFile(filepath.Join("..", "..", "testdata", "summary", "augur-unavailable", "document.json"))
+		if err != nil {
+			t.Fatalf("read the golden: %v", err)
+		}
+		if got, want := withoutAdditive(t, []byte(out)), withoutAdditive(t, golden); !reflect.DeepEqual(got, want) {
+			t.Errorf("built %v\nwant  %v", got, want)
+		}
+		if code != exitcode.Yellow {
+			t.Errorf("exit %d, want %d", code, exitcode.Yellow)
+		}
+	})
+
+	augurFirst := strings.Replace(summaryConfig, "authorities:\n", "authorities:\n"+augurAuthority, 1)
+	for _, tc := range []struct {
+		name    string
+		config  string
+		doc     string
+		now     string
+		exit    int
+		overall string
+		sources []string
+	}{
+		{"config order is kept", augurFirst, "green", pinned, 1, "YELLOW", []string{"augur", "simplex"}},
+		{"red stays red", summaryConfig + augurAuthority, "blind", pinned, 2, "RED", []string{"simplex", "augur"}},
+		{"stale simplex", summaryConfig + augurAuthority, "green", "2026-11-13T18:10:00Z", 1, "YELLOW", []string{"simplex", "augur"}},
+		{"nothing readable", summaryConfig + augurAuthority, "", pinned, 4, "null", []string{"simplex", "augur"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.doc == "" {
+				publish(t, "{", generated)
+			} else {
+				publish(t, vendoredDoc(t, tc.doc), generated)
+			}
+			code, doc, _ := summarise(t, tc.config, "--now", tc.now)
+			if code != tc.exit || colour(doc) != tc.overall {
+				t.Errorf("exit %d overall %s, want %d %s", code, colour(doc), tc.exit, tc.overall)
+			}
+			var verdicts, rows []string
+			for _, v := range doc.Verdicts {
+				verdicts = append(verdicts, v.Source)
+				if v.Source == "augur" && (v.State != "unavailable" || v.Severity != nil || v.ObservedAt != nil ||
+					!slices.Equal(v.Reasons, []string{"authority_unavailable"})) {
+					t.Errorf("augur verdict = %+v", v)
+				}
+			}
+			for _, r := range doc.Sources {
+				rows = append(rows, r.ID)
+				if r.ID == "augur" && (r.State != "unavailable" || r.DetailCode == nil || *r.DetailCode != "source_unavailable") {
+					t.Errorf("augur row = %+v", r)
+				}
+			}
+			if !slices.Equal(verdicts, tc.sources) || !slices.Equal(rows, tc.sources) {
+				t.Errorf("verdicts %v sources %v, want %v", verdicts, rows, tc.sources)
 			}
 		})
 	}

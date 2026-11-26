@@ -20,7 +20,9 @@ What Vigil does today (V1 and V2):
 Planned (not yet shipped):
 
 - **Augur as a second authority (not yet shipped):** a configured `augur`
-  authority is accepted by the config and not read yet.
+  authority is not read yet. It is reported `unavailable`
+  (`source_unavailable`), which holds `overall` at YELLOW or worse, so list
+  only `simplex` under `authorities` until it ships.
 - **V3 (not yet shipped):** will accept ephemeral **signals** from
   authenticated callers over a loopback HTTP listener (`vigil serve`). A signal
   is information, never a verdict.
@@ -46,13 +48,13 @@ within `v0`. Serving it over HTTP is V3 (not yet shipped).
 
 - `overall` is the worst severity among the readable verdicts in
   `verdicts[]`, after three caps and nothing else. Stale cap: a stale verdict
-  counts as at least YELLOW. Missing-authority cap: while an authority the
-  summary evaluates is unavailable, `overall` is at least YELLOW. Drift cap:
+  counts as at least YELLOW. Missing-authority cap: while any configured
+  authority is unavailable, `overall` is at least YELLOW. Drift cap:
   while an authority is on another watch declaration past the grace window,
   `overall` is at least YELLOW. If no authority is readable, `overall` is null.
   A reader renders null as unavailable — null is never GREEN.
-- `verdicts[]` says which authority said what: one entry per authority
-  evaluated (Simplex only today) with its own `state` (`ok`, `stale`, `unavailable`), the severity
+- `verdicts[]` says which authority said what: one entry per configured
+  authority with its own `state` (`ok`, `stale`, `unavailable`), the severity
   as published, the reasons — Vigil's own codes (`source_stale`,
   `source_unavailable`, `schema_major`, `clock_skew`,
   `authority_unavailable`, `declaration_drift`) plus any authority-level reasons the authority
@@ -202,7 +204,7 @@ against the JSON Schemas under `schema/`.
 `overall` is the worst severity among the readable verdicts in `verdicts[]`,
 after three caps and nothing else; with one authority and no cap in play,
 `overall` is that authority's published severity, and a stale GREEN gives
-YELLOW. Adding an authority to the evaluation keeps `overall` or makes it
+YELLOW. Adding a configured authority keeps `overall` or makes it
 worse, never better. Vigil adds no second opinion of its own.
 
 ## Documents

@@ -24,7 +24,7 @@ The schema holds each verdict to its state: `unavailable` has severity null, and
 | Declaration drift | An authority's drift past the grace window raises `overall` to at least YELLOW and never to RED. It changes no severity, and it leaves a null `overall` null. An informational source's drift is listed and colours nothing. | section 20 |
 | No second rollup | Vigil does not recompute a host or check result from a primitive. It combines verdicts; it does not re-derive them. | `simplex-yellow-augur-red` |
 
-Before Augur's Vigil fields land, `verdicts[]` holds `simplex` only, and the document says so. Augur-shaped fields injected early leave `overall` unchanged.
+Until Augur's reader ships, a config lists `simplex` only, and `verdicts[]` then holds `simplex` only. A configured `augur` authority is not left out: it is `unavailable` with `source_unavailable`, so the missing-authority cap applies (test: `TestSimplexSummaryConfiguredAugur`). Augur-shaped fields injected early leave `overall` unchanged.
 
 `hosts[]` comes from Simplex alone (`source: simplex`). Augur's per-host alerts live in the `augur{}` block. Vigil never merges the two into one host colour.
 

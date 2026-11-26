@@ -196,9 +196,12 @@ vigil simplex summary --config FILE [--overlay FILE] [--json] [--now TIME]
 
 What it evaluates in V2:
 
-- `verdicts[]` holds `simplex` only, and `sources[]` the one `simplex` row. A
-  configured `augur` authority is not read yet: it neither appears nor holds
-  `overall` back. Backends and informational sources add no rows.
+- Every configured authority appears in `verdicts[]` and `sources[]`, in
+  config order. Only Simplex has a reader yet: until Augur's ships, a
+  configured `augur` authority is reported `unavailable`
+  (`source_unavailable`), its `path_ref` is not opened, and `overall` is at
+  least YELLOW. List only `simplex` under `authorities` in a V2 config.
+  Backends and informational sources add no rows.
 - The document is fresh within the authority's `stale_after` (else
   `freshness.stale_after`) and its own `valid_for`; `freshness.skew_budget`
   bounds the clock difference. `received_at` is the file's modification time,
@@ -212,10 +215,10 @@ Exit codes:
 | Code | Meaning |
 | --- | --- |
 | 0 | `overall` GREEN |
-| 1 | `overall` YELLOW; a stale or drifted document is at least this |
+| 1 | `overall` YELLOW; a stale or drifted document, or an unavailable authority beside a readable one, is at least this |
 | 2 | `overall` RED, a blind vantage included |
 | 3 | usage or configuration error |
-| 4 | `overall` null: the document could not be read; the summary is still printed |
+| 4 | `overall` null: no authority could be read; the summary is still printed |
 | 5 | a wildcard `listen` in the config |
 | 6 | internal error, or the output could not be written |
 

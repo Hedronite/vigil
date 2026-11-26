@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"slices"
 	"strconv"
 	"time"
 
@@ -10,6 +11,7 @@ import (
 
 	"github.com/Hedronite/vigil/internal/config"
 	"github.com/Hedronite/vigil/internal/exitcode"
+	"github.com/Hedronite/vigil/internal/reasons"
 	"github.com/Hedronite/vigil/internal/render"
 	"github.com/Hedronite/vigil/internal/simplexdoc"
 	"github.com/Hedronite/vigil/internal/summary"
@@ -40,9 +42,10 @@ func simplexCommand(runSummary func(*cobra.Command, []string) error) *cobra.Comm
 	simplex.AddCommand(&cobra.Command{
 		Use:   "summary",
 		Short: "Print vigil.summary/v0 from the Simplex document",
-		Long: "Print vigil.summary/v0 from the Simplex document the config names.\n" +
-			"It reads files only. The exit code is the verdict: 0 GREEN, 1 YELLOW,\n" +
-			"2 RED, and 4 when the document could not be read.",
+		Long: "Print vigil.summary/v0 for the configured authorities. Only the Simplex\n" +
+			"document is read yet; any other authority is unavailable. It reads files\n" +
+			"only. The exit code is the verdict: 0 GREEN, 1 YELLOW, 2 RED, and 4 when\n" +
+			"no authority could be read.",
 		Args: cobra.NoArgs,
 		RunE: runSummary,
 	})
@@ -52,11 +55,11 @@ func simplexCommand(runSummary func(*cobra.Command, []string) error) *cobra.Comm
 // simplexSummary reads one file and prints what it adds up to. No backend is
 // contacted.
 func simplexSummary(ctx context.Context, inv Invocation) error {
-	cfg, authority, err := loadSummaryConfig(inv)
+	cfg, err := loadSummaryConfig(inv)
 	if err != nil {
 		return err
 	}
-	doc, err := buildSummary(ctx, cfg, authority, clock(inv))
+	doc, err := buildSummary(ctx, cfg, clock(inv))
 	if err != nil {
 		return err
 	}
@@ -66,67 +69,85 @@ func simplexSummary(ctx context.Context, inv Invocation) error {
 	return verdictOf(doc)
 }
 
-// loadSummaryConfig loads the config, checks an overlay if one is given, and finds
-// the Simplex authority.
-func loadSummaryConfig(inv Invocation) (*config.Config, config.Authority, error) {
-	var none config.Authority
+// loadSummaryConfig loads the config, checks an overlay if one is given, and
+// requires a Simplex authority.
+func loadSummaryConfig(inv Invocation) (*config.Config, error) {
 	if inv.ConfigPath == "" {
-		return nil, none, exitcode.Newf(exitcode.Usage, "missing_config", "--config is required")
+		return nil, exitcode.Newf(exitcode.Usage, "missing_config", "--config is required")
 	}
 	cfg, err := config.Load(inv.ConfigPath)
 	if err != nil {
-		return nil, none, configFailure("config", err)
+		return nil, configFailure("config", err)
 	}
 	if inv.OverlayPath != "" {
 		if _, err := loadOverlay(inv.OverlayPath, cfg); err != nil {
-			return nil, none, err
+			return nil, err
 		}
 	}
-	for _, a := range cfg.Authorities {
-		if a.ID == simplexdoc.Source {
-			return cfg, a, nil
-		}
+	if !slices.ContainsFunc(cfg.Authorities, func(a config.Authority) bool { return a.ID == simplexdoc.Source }) {
+		return nil, exitcode.Newf(exitcode.Usage, "missing_authority", "the config has no simplex authority")
 	}
-	return nil, none, exitcode.Newf(exitcode.Usage, "missing_authority", "the config has no simplex authority")
+	return cfg, nil
 }
 
-// buildSummary reads the authority's document and combines it. Why a document
-// was refused stays here: the summary carries the detail code, and the cause,
-// which can name a path, is never printed.
+// buildSummary combines every configured authority, in config order.
 //
 // A one-shot run remembers nothing, so it passes no time at which the
 // declaration changed and drift has no grace window.
-func buildSummary(ctx context.Context, cfg *config.Config, authority config.Authority, now time.Time) (*summary.Document, error) {
-	staleAfter, skew, err := bounds(cfg.Freshness, authority)
+func buildSummary(ctx context.Context, cfg *config.Config, now time.Time) (*summary.Document, error) {
+	skew, err := duration(cfg.Freshness.SkewBudget)
 	if err != nil {
 		return nil, err
 	}
-	seen, readErr := simplexdoc.Read(ctx, authority.PathRef, now)
-	var refused *simplexdoc.UnavailableError
-	if readErr != nil && !errors.As(readErr, &refused) {
-		return nil, exitcode.Newf(exitcode.Unavailable, "interrupted", "the command was interrupted before a verdict")
-	}
-	return summary.Combine(summary.Input{
-		Authorities:      []summary.Authority{summary.FromSimplex(seen, readErr, staleAfter)},
+	in := summary.Input{
 		SkewBudget:       skew,
 		Declaration:      cfg.Declaration,
 		DeclarationGrace: time.Duration(*cfg.Freshness.DeclarationGraceS) * time.Second,
-	}, now), nil
+	}
+	for _, configured := range cfg.Authorities {
+		authority, err := readAuthority(ctx, cfg.Freshness, configured, now)
+		if err != nil {
+			return nil, err
+		}
+		in.Authorities = append(in.Authorities, authority)
+	}
+	return summary.Combine(in, now), nil
 }
 
-// bounds is the authority's stale_after, or the global one, and the skew
-// budget. The loader has checked both shapes and filled the defaults.
-func bounds(f *config.Freshness, authority config.Authority) (staleAfter, skew time.Duration, err error) {
+// readAuthority is what one configured authority contributes. Only Simplex has
+// a reader; any other is unavailable, never left out, so that configuring it
+// cannot read as health.
+//
+// Why a document was refused stays here: the summary carries the detail code,
+// and the cause, which can name a path, is never printed.
+func readAuthority(ctx context.Context, f *config.Freshness, configured config.Authority, now time.Time) (summary.Authority, error) {
+	if configured.ID != simplexdoc.Source {
+		return summary.Authority{ID: configured.ID, DetailCode: reasons.SourceUnavailable}, nil
+	}
 	age := f.StaleAfter
-	if authority.StaleAfter != "" {
-		age = authority.StaleAfter
+	if configured.StaleAfter != "" {
+		age = configured.StaleAfter
 	}
-	staleAfter, ageErr := time.ParseDuration(age)
-	skew, skewErr := time.ParseDuration(f.SkewBudget)
-	if ageErr != nil || skewErr != nil {
-		return 0, 0, exitcode.New(exitcode.Internal, "internal")
+	staleAfter, err := duration(age)
+	if err != nil {
+		return summary.Authority{}, err
 	}
-	return staleAfter, skew, nil
+	seen, readErr := simplexdoc.Read(ctx, configured.PathRef, now)
+	var refused *simplexdoc.UnavailableError
+	if readErr != nil && !errors.As(readErr, &refused) {
+		return summary.Authority{}, exitcode.Newf(exitcode.Unavailable, "interrupted", "the command was interrupted before a verdict")
+	}
+	return summary.FromSimplex(seen, readErr, staleAfter), nil
+}
+
+// duration parses a bound whose shape the loader has checked and whose default
+// it has filled.
+func duration(value string) (time.Duration, error) {
+	d, err := time.ParseDuration(value)
+	if err != nil {
+		return 0, exitcode.New(exitcode.Internal, "internal")
+	}
+	return d, nil
 }
 
 func printSummary(inv Invocation, doc *summary.Document) error {
