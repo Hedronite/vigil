@@ -173,7 +173,8 @@ jobs:
           exit 0
       # Judge the gate on every gate leg, from the report and the exit code (GO_TOPS.md
       # section 3.3, ruling C9). Exit 0 and exit 1 are both read against the report:
-      # every layer in range ran and is pass or skip, the run is not partial, and the
+      # every layer in range ran and is pass or skip (the mutation layer may also be
+      # vacuous, when the diff changes no production line), the run is not partial, and the
       # only failed item, if any, is the required laws, all reported not evaluated,
       # with no law judged and none refused (the laws are judged from M5). An exit 0
       # with a failed layer (an advisory run) or from a partial run is not a pass. Any
@@ -181,7 +182,8 @@ jobs:
       # (GO_TOPS.md section 6.7); this repository's ledger leg is the ubuntu leg, so
       # it must report pass, and the other gate legs pass or skip, a skip only when
       # the run's build differs from the ledger's (ruling C3b): a skip on the ledger's
-      # own build judged nothing. If the ledger leg reports skip, the baseline was
+      # own build judged nothing. The mutation layer is off only until a day after
+      # today (UTC), and a pass counts no unexplained survivor (section 6.4). If the ledger leg reports skip, the baseline was
       # recorded under a build no leg runs. The step fails closed: a missing exit
       # code (a step before the gate failed), a missing report, a report that is not
       # JSON and a missing field are failures.
@@ -224,8 +226,15 @@ jobs:
             jq -e '(.ratchet.ledger_build | .tags |= sort) != (.ratchet.run_build | .tags |= sort)' "$report" > /dev/null \
               || fail "the ratchet was skipped on the ledger's own build, or the report names no builds, so it judged nothing (C3b)"
           fi
+          jq -e '
+            [.layers[] | select(.id == "mutation") | select(
+              (.outcome == "pass" and .details.survived_unexplained != 0)
+              or (.outcome == "skip" and (((.expires | type) != "string")
+                or ((.expires | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}$")) | not)
+                or .expires <= (now | strftime("%Y-%m-%d")))))] | length == 0
+          ' "$report" > /dev/null || fail "the mutation layer passed with an unexplained survivor or no count, or it is off without a date after today (GO_TOPS.md section 6.4)"
           jq -e --argjson code "$GATE_EXIT" '
-            ([.layers[] | select(.outcome != "pass" and .outcome != "skip")] | length) == 0
+            ([.layers[] | select(.outcome != "pass" and .outcome != "skip" and ((.id == "mutation" and .outcome == "vacuous") | not))] | length) == 0
             and .summary.outcome != "partial"
             and (.layer_counts.ran | type) == "number"
             and .layer_counts.ran == .layer_counts.enabled_in_range
@@ -254,10 +263,12 @@ jobs:
         with:
           name: go-tops-${{ matrix.leg }}
           # Hidden files are off by default and .go-tops is a hidden directory;
-          # the downloaded binaries in .go-tops/bin are not an artifact.
+          # the downloaded binaries in .go-tops/bin are not an artifact, and the
+          # ledger travels only in go-tops-baseline.
           path: |
             .go-tops/
             !.go-tops/bin/
+            !.go-tops/baseline.json
           include-hidden-files: true
           if-no-files-found: warn
       # Run this workflow by hand (workflow_dispatch) to write or refresh the ledger
