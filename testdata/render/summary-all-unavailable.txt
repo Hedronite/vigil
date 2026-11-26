@@ -1,0 +1,11 @@
+OVERALL       unavailable
+GENERATED_AT  2026-11-13T18:00:00Z
+DECLARATION   -
+
+SOURCE   STATE        SEVERITY  OBSERVED_AT  REASONS
+simplex  unavailable  -         -            authority_unavailable
+augur    unavailable  -         -            authority_unavailable
+
+ID       KIND     STATE        OBSERVED_AT  LAST_OK  DETAIL_CODE
+simplex  simplex  unavailable  -            -        source_unavailable
+augur    augur    unavailable  -            -        source_unavailable

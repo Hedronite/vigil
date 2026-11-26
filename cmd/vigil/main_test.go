@@ -39,6 +39,7 @@ func spy(calls *[]string, inv *Invocation) Handlers {
 	return Handlers{
 		PromTargets: rec("prom-targets"), PromQuery: rec("prom-query"),
 		GrafanaHealth: rec("grafana-health"), Sources: rec("sources"), Validate: rec("validate"),
+		SimplexSummary: rec("simplex-summary"),
 	}
 }
 
@@ -236,6 +237,7 @@ func TestValidArgumentsReachTheHandler(t *testing.T) {
 		{[]string{"grafana", "health"}, "grafana-health"},
 		{[]string{"sources"}, "sources"},
 		{[]string{"validate"}, "validate"},
+		{[]string{"simplex", "summary"}, "simplex-summary"},
 		{[]string{"prom", "query", "up_total"}, "prom-query"},
 	} {
 		calls = nil
@@ -249,6 +251,7 @@ func TestValidArgumentsReachTheHandler(t *testing.T) {
 func TestStubsAreNotVerdicts(t *testing.T) {
 	for _, args := range [][]string{
 		{"prom", "targets"}, {"prom", "query", "up_total"}, {"grafana", "health"}, {"sources"}, {"validate"},
+		{"simplex", "summary"},
 	} {
 		code, out, errs := call(t, defaultHandlers(), args...)
 		if code != exitcode.Internal || out != "" {
@@ -364,6 +367,7 @@ func TestCommandSetIsExactlyThePublished(t *testing.T) {
 	want := map[string]bool{
 		"version": true, "prom targets": true, "prom query": true,
 		"grafana health": true, "sources": true, "validate": true, "help": true,
+		"simplex summary": true,
 	}
 	for _, g := range got {
 		if !want[g] {

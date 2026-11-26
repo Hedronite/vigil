@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"regexp"
@@ -18,6 +19,7 @@ import (
 // Invocation is what a command handler receives. Handlers write the document
 // to Stdout and return nil, or return an error and write nothing: the command
 // layer discards Stdout on any failure, so a failed command prints no stdout.
+// A summary's verdict is not a failure: see verdictExit.
 type Invocation struct {
 	// Name is the query name for prom query; empty for the other commands.
 	Name string
@@ -39,13 +41,14 @@ type Invocation struct {
 type Handler func(ctx context.Context, inv Invocation) error
 
 // Handlers is the table of command bodies. The command layer owns parsing,
-// validation and error output; each body owns one backend.
+// validation and error output; each body owns one backend or document.
 type Handlers struct {
-	PromTargets   Handler
-	PromQuery     Handler
-	GrafanaHealth Handler
-	Sources       Handler
-	Validate      Handler
+	PromTargets    Handler
+	PromQuery      Handler
+	GrafanaHealth  Handler
+	Sources        Handler
+	Validate       Handler
+	SimplexSummary Handler
 }
 
 // notImplemented is the body of a command whose backend has not landed yet.
@@ -55,11 +58,12 @@ func notImplemented(context.Context, Invocation) error {
 
 func defaultHandlers() Handlers {
 	return Handlers{
-		PromTargets:   notImplemented,
-		PromQuery:     notImplemented,
-		GrafanaHealth: notImplemented,
-		Sources:       notImplemented,
-		Validate:      notImplemented,
+		PromTargets:    notImplemented,
+		PromQuery:      notImplemented,
+		GrafanaHealth:  notImplemented,
+		Sources:        notImplemented,
+		Validate:       notImplemented,
+		SimplexSummary: notImplemented,
 	}
 }
 
@@ -72,7 +76,7 @@ var (
 
 // run builds the command tree for one invocation, runs it and returns the
 // exit code. Every failure prints exactly one vigil.error/v0 line on stderr
-// and nothing on stdout.
+// and nothing on stdout. A verdict code comes only with its document.
 func run(ctx context.Context, args []string, stdout, stderr io.Writer, h Handlers) int {
 	var out bytes.Buffer
 	root := newRoot(&out, h)
@@ -83,9 +87,9 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer, h Handler
 	root.SilenceUsage = true
 
 	err := root.ExecuteContext(ctx)
-	if err == nil {
-		_, _ = stdout.Write(out.Bytes())
-		return exitcode.Green
+	var verdict verdictExit // zero is GREEN, which is also what no error means
+	if err == nil || errors.As(err, &verdict) {
+		return flush(stdout, stderr, out.Bytes(), int(verdict))
 	}
 	ee, ok := exitcode.As(err)
 	if !ok {
@@ -93,6 +97,29 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer, h Handler
 	}
 	writeError(stderr, ee)
 	return ee.Exit
+}
+
+// flush writes the held output and returns code. A document that did not reach
+// stdout is not a verdict.
+func flush(stdout, stderr io.Writer, out []byte, code int) int {
+	if _, err := stdout.Write(out); err != nil {
+		writeError(stderr, exitcode.New(exitcode.Internal, "internal"))
+		return exitcode.Internal
+	}
+	return code
+}
+
+// handlerError keeps what a handler may answer with: a verdict or a coded
+// failure. Text from any other error could carry an address.
+func handlerError(err error) error {
+	var verdict verdictExit
+	if err == nil || errors.As(err, &verdict) {
+		return err
+	}
+	if coded, ok := exitcode.As(err); ok {
+		return coded
+	}
+	return exitcode.New(exitcode.Internal, "internal")
 }
 
 // newRoot builds the tree. out collects handler output.
@@ -124,8 +151,8 @@ func newRoot(out *bytes.Buffer, h Handlers) *cobra.Command {
 	root := &cobra.Command{
 		Use:   "vigil",
 		Short: "Vigil: one query surface over the mesh's named backends",
-		Long: "Vigil reads named backends (Prometheus, Grafana) through names in its\n" +
-			"config. No command takes a URL, a selector or PromQL.",
+		Long: "Vigil reads named backends (Prometheus, Grafana) and authority documents\n" +
+			"through names in its config. No command takes a URL, a selector or PromQL.",
 		Args: cobra.NoArgs,
 		RunE: func(*cobra.Command, []string) error { return usage("a command is required") },
 		// Completion is not part of the surface.
@@ -150,14 +177,7 @@ func newRoot(out *bytes.Buffer, h Handlers) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if err := handler(cmd.Context(), i); err != nil {
-				if _, ok := exitcode.As(err); ok {
-					return err
-				}
-				// Text from an unknown error could carry an address.
-				return exitcode.New(exitcode.Internal, "internal")
-			}
-			return nil
+			return handlerError(handler(cmd.Context(), i))
 		}
 	}
 
@@ -226,7 +246,7 @@ func newRoot(out *bytes.Buffer, h Handlers) *cobra.Command {
 		RunE:  run(h.Validate, nil, nil),
 	}
 
-	root.AddCommand(version, prom, grafana, sources, validate)
+	root.AddCommand(version, prom, grafana, sources, validate, simplexCommand(run(h.SimplexSummary, nil, nil)))
 	return root
 }
 

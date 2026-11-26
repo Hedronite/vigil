@@ -1,4 +1,4 @@
-# Vigil CLI (V1)
+# Vigil CLI (V2)
 
 One command surface, one document per command. `--json` prints the document
 alone on stdout; every failure prints one JSON line on stderr and nothing on
@@ -17,8 +17,8 @@ invents a second shape, and a table never prints a field the document lacks.
 `vigil --help` output, captured from the binary:
 
 ```
-Vigil reads named backends (Prometheus, Grafana) through names in its
-config. No command takes a URL, a selector or PromQL.
+Vigil reads named backends (Prometheus, Grafana) and authority documents
+through names in its config. No command takes a URL, a selector or PromQL.
 Usage:
   vigil [flags]
   vigil [command]
@@ -26,6 +26,7 @@ Available Commands:
   grafana     Check the named Grafana backend
   help        Help about any command
   prom        Query the named Prometheus backend
+  simplex     Combine what Simplex published
   sources     List the configured backends and their reachability
   validate    Validate config and optional overlay without probing
   version     Print the version, the commit and the Go runtime
@@ -59,7 +60,9 @@ carries a URL, a token or anything that distinguishes a missing credential
 from a wrong one. Codes on the V1 surface include `unreachable`, `timeout`,
 `body_cap`, `redirect_refused`, `http_status`, `series_cap`,
 `query_warnings`, `query_rejected`, `not_health`, `missing_host`,
-`unexpected_host` and `usage`. Stdout stays empty on every failure.
+`unexpected_host`, `missing_config`, `missing_authority`, `interrupted` and
+`usage`. Stdout stays empty on every failure. A verdict is not a failure:
+`vigil simplex summary` prints its document when it exits 1, 2 or 4.
 
 ## vigil version (V0)
 
@@ -170,8 +173,67 @@ in order:
 
 A prom row is checked through `/-/ready` and carries its vantage; a grafana
 row uses the health check. Rows are data: a down backend is a row state, and
-the command still exits 0. `last_ok` stays null in V1 — no state is kept
-between runs. Authority rows arrive at V2 and informational rows at V5.
+the command still exits 0. `last_ok` stays null — no state is kept between
+runs. This command lists backends only: the authority row is in
+`vigil simplex summary`, and informational rows arrive at V5.
+
+## vigil simplex summary (V2)
+
+Reads the document Simplex publishes at the `simplex` authority's `path_ref`
+and prints one `vigil.summary/v0`. It reads files only: no backend is
+contacted, no program is run and nothing listens.
+
+```
+vigil simplex summary --config FILE [--overlay FILE] [--json] [--now TIME]
+```
+
+| Flag | Meaning |
+| --- | --- |
+| `--config PATH` | required; it must declare a `simplex` authority, or the command exits 3 (`missing_authority`) |
+| `--overlay PATH` | optional; checked against the config when given, and never used to contact anything |
+| `--json` | the document alone, one line |
+| `--now <RFC 3339>` | pin the clock; `generated_at`, every age and freshness come from it |
+
+What it evaluates in V2:
+
+- Every configured authority appears in `verdicts[]` and `sources[]`, in
+  config order. Only Simplex has a reader yet: until Augur's ships, a
+  configured `augur` authority is reported `unavailable`
+  (`source_unavailable`), its `path_ref` is not opened, and `overall` is at
+  least YELLOW. List only `simplex` under `authorities` in a V2 config.
+  Backends and informational sources add no rows.
+- The document is fresh within the authority's `stale_after` (else
+  `freshness.stale_after`) and its own `valid_for`; `freshness.skew_budget`
+  bounds the clock difference. `received_at` is the file's modification time,
+  never later than now.
+- Declaration drift compares the document with the config's `declaration`. A
+  one-shot run keeps no record of when that changed, so there is no grace
+  window: `in_grace` is false and `declaration_grace_s` has no effect here.
+
+Exit codes:
+
+| Code | Meaning |
+| --- | --- |
+| 0 | `overall` GREEN |
+| 1 | `overall` YELLOW; a stale or drifted document, or an unavailable authority beside a readable one, is at least this |
+| 2 | `overall` RED, a blind vantage included |
+| 3 | usage or configuration error |
+| 4 | `overall` null: no authority could be read; the summary is still printed |
+| 5 | a wildcard `listen` in the config |
+| 6 | internal error, or the output could not be written |
+
+With 0, 1, 2 and 4 the document is on stdout and stderr is empty. Otherwise
+there is no document, only the error line. An interrupted run also exits 4,
+with the error code `interrupted` and no document.
+
+When the document is unusable, its `sources[]` row says why in `detail_code`:
+`source_unavailable` or `schema_major`. The path and the underlying error are
+never printed.
+
+The table has a header block (`OVERALL`, which reads `unavailable` when null,
+`GENERATED_AT`, `VANTAGE`, `VANTAGE_STATUS`, `DECLARATION`), then verdicts,
+hosts, sources and the declaration comparison. A verdict row shows its age.
+When Simplex is stale, every host row says so and shows the age too.
 
 ## vigil validate
 

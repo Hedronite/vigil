@@ -1,0 +1,15 @@
+OVERALL         RED
+GENERATED_AT    2026-11-13T18:00:00Z
+VANTAGE         lab
+VANTAGE_STATUS  blind
+DECLARATION     -
+
+SOURCE   STATE  SEVERITY  OBSERVED_AT           AGE  REASONS
+simplex  ok     RED       2026-11-13T18:00:00Z  0s   -
+
+HOST  SEVERITY  REASONS
+edge  RED       vantage_blind
+lab   RED       vantage_blind
+
+ID       KIND     STATE  OBSERVED_AT           LAST_OK
+simplex  simplex  ok     2026-11-13T18:00:00Z  2026-11-13T18:00:00Z

@@ -50,6 +50,8 @@ func FuzzCLIArgs(f *testing.F) {
 		"prom query up(x)", "prom query up_all --host a{b}",
 		"prom query a --host \" --host ", "-hh \"", "\"000000 -h", "--overlay \" sources",
 		"prom query up_all --config ? --overlay #", "prom query up_all --host Core", "prom query UP",
+		"simplex summary", "simplex", "simplex summary --json --now 2026-11-13T18:00:00Z", "validate",
+		"simplex summary http://leak.example.invalid/x", "simplex nope",
 	} {
 		f.Add(s)
 	}
@@ -62,7 +64,7 @@ func FuzzCLIArgs(f *testing.F) {
 			got = &i
 			return nil
 		}
-		h := Handlers{PromTargets: rec, PromQuery: rec, GrafanaHealth: rec, Sources: rec}
+		h := Handlers{PromTargets: rec, PromQuery: rec, GrafanaHealth: rec, Sources: rec, Validate: rec, SimplexSummary: rec}
 
 		var out, errb bytes.Buffer
 		code := run(context.Background(), args, &out, &errb, h)
