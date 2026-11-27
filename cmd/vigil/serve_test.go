@@ -81,14 +81,20 @@ func waitListen(t *testing.T, addr string) {
 
 func fetchSummary(t *testing.T, addr, token string) (string, int) {
 	t.Helper()
-	req, _ := http.NewRequest(http.MethodGet, "http://"+addr+"/v0/summary", nil)
+	req, err := http.NewRequest(http.MethodGet, "http://"+addr+"/v0/summary", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
 	req.Header.Set("Authorization", "Bearer "+token)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer resp.Body.Close()
-	body, _ := io.ReadAll(resp.Body)
+	defer func() { _ = resp.Body.Close() }()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
 	return string(body), resp.StatusCode
 }
 
@@ -160,13 +166,18 @@ hosts:
 		_ = run(ctx, []string{"serve", "--config", cfg, "--overlay", overlay, "--now", pinned}, io.Discard, io.Discard, liveHandlers())
 	}()
 	waitListen(t, addr)
-	req, _ := http.NewRequest(http.MethodGet, "http://"+addr+"/v0/sources", nil)
+	req, err := http.NewRequest(http.MethodGet, "http://"+addr+"/v0/sources", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
 	req.Header.Set("Authorization", "Bearer "+secret)
 	resp, err := client.Do(req)
 	if err != nil {
 		t.Fatal(err)
 	}
-	_ = resp.Body.Close()
+	if err := resp.Body.Close(); err != nil {
+		t.Fatal(err)
+	}
 	if dials.Load() != 1 {
 		t.Fatalf("dials=%d want 1 (listener only)", dials.Load())
 	}
@@ -250,7 +261,11 @@ func TestServeBindFailure(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer hold.Close()
+	defer func() {
+		if err := hold.Close(); err != nil {
+			t.Fatal(err)
+		}
+	}()
 	code, _, errs := call(t, liveHandlers(), "serve", "--config", cfg, "--now", pinned)
 	if code != exitcode.Startup || !strings.Contains(errs, "bind_failed") {
 		t.Fatalf("bind: exit=%d stderr=%q", code, errs)

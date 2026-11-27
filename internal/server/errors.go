@@ -29,5 +29,7 @@ func writeAPI(w http.ResponseWriter, status int, code string) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	_, _ = w.Write(append(b, '\n'))
+	if _, err := w.Write(append(b, '\n')); err != nil {
+		return
+	}
 }

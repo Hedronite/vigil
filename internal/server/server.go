@@ -67,8 +67,7 @@ func Run(ctx context.Context, opts Options) error {
 	case <-ctx.Done():
 		stop, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 		defer cancel()
-		_ = srv.Shutdown(stop)
-		return nil
+		return srv.Shutdown(stop)
 	case err := <-errCh:
 		if errors.Is(err, http.ErrServerClosed) {
 			return nil
@@ -113,7 +112,9 @@ func notFound(mux *http.ServeMux) http.Handler {
 
 func health(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	_, _ = w.Write([]byte(healthBody))
+	if _, err := w.Write([]byte(healthBody)); err != nil {
+		return
+	}
 }
 
 func withAuth(want [32]byte, next http.HandlerFunc) http.HandlerFunc {
@@ -121,7 +122,9 @@ func withAuth(want [32]byte, next http.HandlerFunc) http.HandlerFunc {
 		if !tokenAuthorized(bearerToken(r.Header.Get("Authorization")), want) {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusUnauthorized)
-			_, _ = w.Write([]byte(UnauthorizedBody))
+			if _, err := w.Write([]byte(UnauthorizedBody)); err != nil {
+				return
+			}
 			return
 		}
 		next(w, r)
@@ -186,7 +189,9 @@ func writeJSON(w http.ResponseWriter, doc any) {
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	_, _ = w.Write(append(b, '\n'))
+	if _, err := w.Write(append(b, '\n')); err != nil {
+		return
+	}
 }
 
 func recoverHTTP(next http.Handler) http.Handler {

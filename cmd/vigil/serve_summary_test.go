@@ -5,8 +5,42 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Hedronite/vigil/internal/config"
+	"github.com/Hedronite/vigil/internal/reasons"
 	"github.com/Hedronite/vigil/internal/server"
 )
+
+func TestReadAuthorityServePushWithoutPath(t *testing.T) {
+	auth, err := readAuthorityServe(
+		context.Background(),
+		&config.Freshness{},
+		config.Authority{ID: "simplex", Via: "push"},
+		server.NewState(),
+		generated,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if auth.DetailCode != reasons.SourceUnavailable {
+		t.Fatalf("push authority = %+v", auth)
+	}
+}
+
+func TestReadAuthorityServeNonSimplexUnavailable(t *testing.T) {
+	auth, err := readAuthorityServe(
+		context.Background(),
+		&config.Freshness{},
+		config.Authority{ID: "augur", Via: "file", PathRef: "env:MISSING"},
+		server.NewState(),
+		generated,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if auth.DetailCode != reasons.SourceUnavailable {
+		t.Fatalf("non-simplex authority = %+v", auth)
+	}
+}
 
 func TestServeSummaryBuildsWithDeclarationGrace(t *testing.T) {
 	publish(t, vendoredDoc(t, "green"), generated)

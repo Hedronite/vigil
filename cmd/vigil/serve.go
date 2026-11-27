@@ -25,11 +25,11 @@ func runServe(ctx context.Context, inv Invocation, allowNonLoopback bool) error 
 	}
 	tokenPath, err := server.ReadTokenPath(cfg.Tokens.ReadFile)
 	if err != nil {
-		return tokenStartup(err)
+		return readTokenStartup(err)
 	}
 	hash, err := server.LoadReadTokenHash(tokenPath)
 	if err != nil {
-		return tokenStartup(err)
+		return readTokenStartup(err)
 	}
 	if err := server.CheckBind(cfg.Listen, allowNonLoopback); err != nil {
 		return exitcode.Newf(exitcode.Startup, "non_loopback_listen", err.Error())
@@ -51,13 +51,9 @@ func runServe(ctx context.Context, inv Invocation, allowNonLoopback bool) error 
 	return nil
 }
 
-func tokenStartup(err error) error {
-	switch {
-	case errors.Is(err, server.ErrTokenMissing):
+func readTokenStartup(err error) error {
+	if errors.Is(err, server.ErrTokenMissing) {
 		return exitcode.Newf(exitcode.Startup, "missing_read_token", "the read token file is not configured")
-	case errors.Is(err, server.ErrTokenMode), errors.Is(err, server.ErrTokenEmpty):
-		return exitcode.Newf(exitcode.Startup, "token_unusable", "the read token file cannot be used")
-	default:
-		return exitcode.Newf(exitcode.Startup, "token_unusable", "the read token file cannot be used")
 	}
+	return exitcode.Newf(exitcode.Startup, "token_unusable", "the read token file cannot be used")
 }

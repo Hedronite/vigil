@@ -75,7 +75,11 @@ func get(t *testing.T, url, token string) (int, string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			t.Fatal(err)
+		}
+	}()
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		t.Fatal(err)
@@ -136,13 +140,18 @@ func TestRoutesAuthAndErrors(t *testing.T) {
 	if code != http.StatusNotFound || !strings.Contains(body, `"not_found"`) {
 		t.Fatalf("unknown = %d %q", code, body)
 	}
-	req, _ := http.NewRequest(http.MethodPost, base+"/v0/summary", nil)
+	req, err := http.NewRequest(http.MethodPost, base+"/v0/summary", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
 	req.Header.Set("Authorization", "Bearer "+secret)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatal(err)
 	}
-	_ = resp.Body.Close()
+	if err := resp.Body.Close(); err != nil {
+		t.Fatal(err)
+	}
 	if resp.StatusCode != http.StatusMethodNotAllowed {
 		t.Fatalf("POST summary = %d, want 405", resp.StatusCode)
 	}
@@ -220,13 +229,18 @@ func TestZeroBackendDial(t *testing.T) {
 	client := &http.Client{Transport: transport}
 	cancel, _ := startServer(t, addr, tokenHash(t, "s"), staticDoc(t))
 	defer cancel()
-	req, _ := http.NewRequest(http.MethodGet, "http://"+addr+"/v0/sources", nil)
+	req, err := http.NewRequest(http.MethodGet, "http://"+addr+"/v0/sources", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
 	req.Header.Set("Authorization", "Bearer s")
 	resp, err := client.Do(req)
 	if err != nil {
 		t.Fatal(err)
 	}
-	_ = resp.Body.Close()
+	if err := resp.Body.Close(); err != nil {
+		t.Fatal(err)
+	}
 	if dials.Load() != 1 {
 		t.Fatalf("dials = %d, want only the listener", dials.Load())
 	}

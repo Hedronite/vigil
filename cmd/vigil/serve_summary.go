@@ -7,7 +7,6 @@ import (
 
 	"github.com/Hedronite/vigil/internal/config"
 	"github.com/Hedronite/vigil/internal/exitcode"
-	"github.com/Hedronite/vigil/internal/reasons"
 	"github.com/Hedronite/vigil/internal/server"
 	"github.com/Hedronite/vigil/internal/simplexdoc"
 	"github.com/Hedronite/vigil/internal/summary"
@@ -37,11 +36,15 @@ func serveSummary(ctx context.Context, cfg *config.Config, st *server.State, sta
 
 func readAuthorityServe(ctx context.Context, f *config.Freshness, configured config.Authority, st *server.State, now time.Time) (summary.Authority, error) {
 	if configured.ViaEffective() == "push" {
-		return summary.Authority{ID: configured.ID, DetailCode: reasons.SourceUnavailable}, nil
+		return readAuthority(ctx, f, configured, now)
 	}
 	if configured.ID != simplexdoc.Source {
-		return summary.Authority{ID: configured.ID, DetailCode: reasons.SourceUnavailable}, nil
+		return readAuthority(ctx, f, configured, now)
 	}
+	return simplexAuthorityServe(ctx, f, configured, st, now)
+}
+
+func simplexAuthorityServe(ctx context.Context, f *config.Freshness, configured config.Authority, st *server.State, now time.Time) (summary.Authority, error) {
 	age := f.StaleAfter
 	if configured.StaleAfter != "" {
 		age = configured.StaleAfter
