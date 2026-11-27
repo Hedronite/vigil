@@ -323,7 +323,7 @@ func TestHelpIsASuccess(t *testing.T) {
 			t.Errorf("root help lacks %q", want)
 		}
 	}
-	for _, banned := range []string{"completion", "serve"} {
+	for _, banned := range []string{"completion"} {
 		if strings.Contains(out, banned) {
 			t.Errorf("root help lists %q", banned)
 		}
@@ -366,7 +366,7 @@ func TestCommandSetIsExactlyThePublished(t *testing.T) {
 	}
 	want := map[string]bool{
 		"version": true, "prom targets": true, "prom query": true,
-		"grafana health": true, "sources": true, "validate": true, "help": true,
+		"grafana health": true, "sources": true, "validate": true, "serve": true, "help": true,
 		"simplex summary": true,
 	}
 	for _, g := range got {

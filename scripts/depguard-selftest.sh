@@ -28,7 +28,7 @@ trap 'rm -rf "$tmp"' EXIT
 mkdir "$tmp/tree"
 cp go.mod .golangci.yml "$tmp/tree/" || exit 2
 [ -f go.sum ] && cp go.sum "$tmp/tree/"
-mkdir -p "$tmp/tree/internal/probe" "$tmp/tree/internal/httpx"
+mkdir -p "$tmp/tree/internal/probe" "$tmp/tree/internal/httpx" "$tmp/tree/internal/server"
 cd "$tmp/tree" || exit 2
 
 mod=$(awk '$1=="module"{print $2}' go.mod)
@@ -66,7 +66,7 @@ expect_clean() { # label
 		echo "depguard-selftest ok: $1 allowed"
 	fi
 }
-reset() { rm -f internal/probe/*.go internal/httpx/*.go; }
+reset() { rm -f internal/probe/*.go internal/httpx/*.go internal/server/*.go; }
 
 reset
 printf 'package probe\n\nimport _ "os/exec"\n' >internal/probe/probe.go
@@ -97,6 +97,10 @@ expect_hit "net/http/httputil in a non-test file outside internal/httpx"
 reset
 printf 'package httpx\n\nimport _ "net/http"\n' >internal/httpx/probe.go
 expect_clean "net/http in internal/httpx"
+
+reset
+printf 'package server\n\nimport _ "net/http"\n' >internal/server/probe.go
+expect_clean "net/http in internal/server"
 
 reset
 printf 'package probe\n' >internal/probe/probe.go

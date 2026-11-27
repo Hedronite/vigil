@@ -45,6 +45,10 @@ func scanListeners(t *testing.T, root string) []string {
 			case ".git", "testdata", "vendor", "node_modules":
 				return filepath.SkipDir
 			}
+			rel, _ := filepath.Rel(root, p)
+			if rel == "internal"+string(filepath.Separator)+"server" {
+				return filepath.SkipDir
+			}
 			return nil
 		}
 		if !strings.HasSuffix(p, ".go") || strings.HasSuffix(p, "_test.go") {

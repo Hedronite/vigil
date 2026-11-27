@@ -27,6 +27,7 @@ Available Commands:
   help        Help about any command
   prom        Query the named Prometheus backend
   simplex     Combine what Simplex published
+  serve       Listen for vigil.summary/v0 over HTTP
   sources     List the configured backends and their reachability
   validate    Validate config and optional overlay without probing
   version     Print the version, the commit and the Go runtime
@@ -248,41 +249,65 @@ with `--json`:
 `3` on a missing `--config` or on config or overlay errors, and `5` on a
 wildcard `listen` address.
 
-## vigil serve (V3 — planned, not yet shipped)
+## vigil serve (V3)
 
-Starts the loopback listener. Routes:
+```
+vigil serve --config FILE [--overlay FILE] [--allow-nonloopback] [--now TIME]
+```
+
+| Flag | Meaning |
+| --- | --- |
+| `--config PATH` | required; supplies `listen`, authorities, freshness and token locators |
+| `--overlay PATH` | optional; checked against the config when given, and never used to dial a backend in V3 G2 |
+| `--allow-nonloopback` | permit a `listen` address that is not loopback |
+| `--now <RFC 3339>` | pin the clock for every summary the listener returns |
+
+Starts the HTTP listener on the configured `listen` address (default
+`127.0.0.1:10082`). A missing read token file, a token file that others can
+read, an empty token, a wildcard `listen`, a non-loopback `listen` without
+`--allow-nonloopback`, or a bind failure exits **5** before any route opens,
+with one `vigil.error/v0` line on stderr and nothing on stdout.
+
+Routes shipped in V3 G2:
 
 | Route | Method | Auth |
 | --- | --- | --- |
 | `/healthz` | GET | open; returns `{"status":"ok"}` only |
-| `/v0/summary` | GET | read token |
+| `/v0/summary` | GET | read token (`Authorization: Bearer`) |
 | `/v0/hosts`, `/v0/hosts/{id}` | GET | read token |
-| `/v0/sources` | GET | read token |
+| `/v0/sources` | GET | read token (the authority rows of `vigil.summary/v0`, not a live backend probe) |
+
+`GET /v0/summary` returns the same bytes as `vigil simplex summary --json` for
+the same config, overlay check, and clock. `GET /v0/hosts` returns the
+`hosts[]` slice from that summary; `GET /v0/hosts/{id}` returns one host or
+404; `GET /v0/sources` returns the summary `sources[]` slice only.
+
+Signals and testimony routes arrive in later V3 gates (`/v0/signals`,
+`POST /v0/testimony/{source}`): until then they answer 404 or 405. The read
+token is required on every `/v0/*` route on any bind. Missing and wrong
+credentials get byte-identical 401 bodies with no `WWW-Authenticate` header:
+
+```json
+{"apiVersion":"vigil.error/v0","error":{"code":"unauthorized"}}
+```
+
+Every other non-200 is a `vigil.error/v0` document (`not_found`,
+`method_not_allowed`, `internal`). Unknown paths are 404; the wrong method on
+a known path is 405. JSON only.
+
+SIGINT and SIGTERM stop the listener gracefully; the command exits **0**.
+
+Planned routes (not yet in G2):
+
+| Route | Method | Auth |
+| --- | --- | --- |
 | `/v0/signals` | GET, POST | read token for GET; write token for POST |
 
-The read token is required on every `/v0/*` route on any bind, so a proxy in
-front of loopback cannot bypass it. Both token files fail closed at startup:
-a missing file, or one with permissions looser than 0600, makes `vigil serve`
-exit 5 before any route opens. Missing and wrong credentials get
-byte-identical 401 bodies with no hint of which failed. `POST /v0/signals`
-takes a `vigil.signal/v0` body: `source`, `kind`, `severity` (`info` or
-`notice`), optional `note` (at most 280 bytes, no control characters) and
-`ttl` (clamped into 60s–1h; absent means 5m). `id` and `created_at` are
-assigned by the server and must be absent from a request. Signals live in a
-256-entry in-memory ring, are not persisted, and never change `overall` or
-`sources[]`.
+A wildcard `listen` is rejected in every spelling. A non-loopback bind needs
+`--allow-nonloopback` and one explicit address in the config. Quote a
+bracketed IPv6 value in YAML: `listen: "[::1]:10082"`.
 
-The listener binds `127.0.0.1:10082` by default. A wildcard listen is
-rejected in every spelling and exits 5, and the error names the offending
-address whether it came from the config or a flag. A non-loopback bind needs
-`--allow-nonloopback` plus one explicit address in the config or on the
-command line. A bracketed IPv6 value must be quoted in YAML:
-`listen: "[::1]:10082"`.
-
-The remaining limits — the signal body cap and per-remote rate, the response
-size cap, the per-backend concurrency, and the no-redirect rule — are stated
-once in [docs/semantics.md](docs/semantics.md); this doc does not restate
-them.
+Signal and testimony limits are stated in [docs/semantics.md](semantics.md).
 
 ## Configuration
 

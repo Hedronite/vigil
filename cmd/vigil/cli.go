@@ -127,6 +127,7 @@ func newRoot(out *bytes.Buffer, h Handlers) *cobra.Command {
 	var (
 		config, overlay, now string
 		asJSON               bool
+		allowNonLoopback     bool
 	)
 	inv := func(name, host string) (Invocation, error) {
 		i := Invocation{
@@ -247,6 +248,7 @@ func newRoot(out *bytes.Buffer, h Handlers) *cobra.Command {
 	}
 
 	root.AddCommand(version, prom, grafana, sources, validate, simplexCommand(run(h.SimplexSummary, nil, nil)))
+	addServeCommand(root, inv, &allowNonLoopback)
 	return root
 }
 

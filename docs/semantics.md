@@ -71,14 +71,17 @@ The table is `internal/exitcode.Table`; a test fails if this page and the code d
 | Route | Auth |
 | --- | --- |
 | `GET /healthz` | none; returns `{"status":"ok"}` only |
-| `GET /v0/summary`, `/v0/hosts`, `/v0/hosts/{id}`, `/v0/sources`, `/v0/signals` | read token |
-| `POST /v0/signals` | write token |
+| `GET /v0/summary`, `/v0/hosts`, `/v0/hosts/{id}`, `/v0/sources` | read token |
+| `GET` / `POST /v0/signals` (G3) | read token for GET; write token for POST |
 
 There is no `/v0/query`, no `/v0/queries`, and no route that takes a URL, a selector or PromQL. Every non-200 is a `vigil.error/v0` document, and responses are JSON only.
 
 - **Bind.** Default `127.0.0.1:10082`. A non-loopback bind needs `--allow-nonloopback` and one explicit address: an IPv4 literal or a bracketed IPv6 literal, with a port. Wildcard binds are always rejected, in every spelling: an empty host; any host made only of `0`, `.`, `:`, `[` and `]` (`0.0.0.0`, `[::]`, `[0::]`, `[::0]`, and the zero-padded and fully expanded forms); and the IPv4-mapped unspecified address in any spelling (`[::ffff:0.0.0.0]`, `[::ffff:0:0]`, any case). At runtime a wildcard `listen` exits 5 and names the address, wherever it came from: the config file or any flag. The `listen` key in `vigil.config.v0` also rejects the same set, but that is an authoring and CI check (editors, conformance tests), not an exit path: the binary never runs the JSON Schema. Exit 3 stays for malformed or strictly-decoded config errors. In YAML, quote a bracketed IPv6 value (`listen: "[::1]:10082"`): unquoted, the brackets open a flow sequence and the decoder fails before the schema runs. A bind failure exits 5 and names the address. Port 10082 clears the Prometheus exporter allocations and the Simplex metrics port.
 - **Tokens.** The read token (`VIGIL_READ_TOKEN_FILE`) is required on every `/v0/*` route on any bind, so a proxy in front of loopback cannot bypass it. The write token (`VIGIL_SIGNAL_TOKEN_FILE`) is required for `POST /v0/signals`. Facet holds the read token only. Token files must be mode `0600` or tighter; a missing file or a looser mode exits 5 at start. Secrets come from paths or the environment, never from argv.
-- **Comparison.** Tokens are hashed with SHA-256, then compared in constant time. A missing token and a wrong token get byte-identical 401 bodies with no `WWW-Authenticate` header.
+- **Comparison.** Tokens are hashed with SHA-256, then compared in constant time. A missing token and a wrong token get byte-identical 401 bodies with no `WWW-Authenticate` header. Callers send `Authorization: Bearer` with the raw token from the file.
+- **G2 surface.** `/healthz` is open. `GET /v0/summary` matches `vigil simplex summary --json` for the same config, overlay validation and clock. `GET /v0/hosts` returns the summary `hosts[]`; `GET /v0/hosts/{id}` returns one host or `not_found`; `GET /v0/sources` returns the summary `sources[]` only and never dials a backend. `/v0/signals` and `/v0/testimony` are not registered until G3 and G4 (404 or 405).
+- **Timeouts.** The listener sets bounded `ReadHeaderTimeout`, `ReadTimeout`, `WriteTimeout`, `IdleTimeout` and `MaxHeaderBytes`. A recovered panic is a 500 `internal` with no stack.
+- **Shutdown.** SIGINT and SIGTERM drain the listener and exit 0.
 - **Transport.** Plain HTTP; the tailnet carries it. No TLS in v0.
 
 ## 7. Named queries
@@ -166,7 +169,7 @@ A backend is a named thing Vigil asks questions of: Prometheus or Grafana at V1.
 - **Two calls in flight per backend.** A third waits for a slot, inside its own deadline. The limit belongs to the backend id, not to a client value: a command that built a client per call would get a limiter per call, so `ForBackend` hands every caller the same one.
 - **Errors carry a code and nothing else.** The detail code is `unreachable`, `timeout`, `body_cap`, `redirect_refused` or `http_status`. The text of the underlying error holds the URL, so it is dropped.
 
-Two guards keep the rule from eroding. depguard rejects `net/http`, subpackages included, in every non-test file outside `internal/httpx`; `scripts/depguard-selftest.sh` plants each case. `TestNoListenerBeforeV3` parses every non-test Go file and fails on a listener or a server, so V1 can dial out and cannot listen. V3 relaxes that test on purpose.
+Two guards keep the rule from eroding. depguard rejects `net/http`, subpackages included, in every non-test file outside `internal/httpx` and `internal/server`; `scripts/depguard-selftest.sh` plants each case. `TestNoListenerBeforeV3` parses every non-test Go file except `internal/server` and fails on a listener or a server, so V1 can dial out and cannot listen. V3 relaxes that test on purpose for the serve package only.
 
 The V1 detail codes live in `internal/reasons.Detail`: `unreachable`, `timeout`, `body_cap`, `redirect_refused`, `http_status`, `series_cap`, `query_warnings`, `query_rejected`, `not_health`, `no_series`, `missing_host` and `unexpected_host`. They appear in `sources[].detail_code` and as the `code` of a `vigil.error/v0`. They are never an address, a URL or text copied from a backend.
 
