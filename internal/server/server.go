@@ -112,9 +112,7 @@ func notFound(mux *http.ServeMux) http.Handler {
 
 func health(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	if _, err := w.Write([]byte(healthBody)); err != nil {
-		return
-	}
+	writeBody(w, []byte(healthBody))
 }
 
 func withAuth(want [32]byte, next http.HandlerFunc) http.HandlerFunc {
@@ -122,9 +120,7 @@ func withAuth(want [32]byte, next http.HandlerFunc) http.HandlerFunc {
 		if !tokenAuthorized(bearerToken(r.Header.Get("Authorization")), want) {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusUnauthorized)
-			if _, err := w.Write([]byte(UnauthorizedBody)); err != nil {
-				return
-			}
+			writeBody(w, []byte(UnauthorizedBody))
 			return
 		}
 		next(w, r)
@@ -189,9 +185,7 @@ func writeJSON(w http.ResponseWriter, doc any) {
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	if _, err := w.Write(append(b, '\n')); err != nil {
-		return
-	}
+	writeBody(w, append(b, '\n'))
 }
 
 func recoverHTTP(next http.Handler) http.Handler {
