@@ -121,6 +121,9 @@ func buildSummary(ctx context.Context, cfg *config.Config, now time.Time) (*summ
 // Why a document was refused stays here: the summary carries the detail code,
 // and the cause, which can name a path, is never printed.
 func readAuthority(ctx context.Context, f *config.Freshness, configured config.Authority, now time.Time) (summary.Authority, error) {
+	if configured.ViaEffective() == "push" {
+		return summary.Authority{ID: configured.ID, DetailCode: reasons.SourceUnavailable}, nil
+	}
 	if configured.ID != simplexdoc.Source {
 		return summary.Authority{ID: configured.ID, DetailCode: reasons.SourceUnavailable}, nil
 	}

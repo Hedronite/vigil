@@ -106,10 +106,48 @@
         "signal_file": {
           "description": "Path to the write (signal) token. Required for POST /v0/signals.",
           "$ref": "#/$defs/locator"
+        },
+        "testimony_file": {
+          "description": "Path to the testimony write token. Required when any authority uses via push (POST /v0/testimony).",
+          "$ref": "#/$defs/locator"
         }
       }
     }
   },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "authorities": {
+            "contains": {
+              "type": "object",
+              "properties": {
+                "via": {
+                  "const": "push"
+                }
+              },
+              "required": [
+                "via"
+              ]
+            }
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "tokens"
+        ],
+        "properties": {
+          "tokens": {
+            "type": "object",
+            "required": [
+              "testimony_file"
+            ]
+          }
+        }
+      }
+    }
+  ],
   "$defs": {
     "slug": {
       "type": "string",
@@ -151,8 +189,7 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "id",
-        "path_ref"
+        "id"
       ],
       "properties": {
         "id": {
@@ -162,6 +199,15 @@
             "augur"
           ]
         },
+        "via": {
+          "description": "file: read path_ref on each request (one-shot CLI). push: in-memory testimony store (V3 listener). Default file.",
+          "type": "string",
+          "enum": [
+            "file",
+            "push"
+          ],
+          "default": "file"
+        },
         "path_ref": {
           "$ref": "#/$defs/locator"
         },
@@ -170,7 +216,45 @@
           "type": "string",
           "pattern": "^[1-9][0-9]{0,3}s$"
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "via": {
+                "const": "push"
+              }
+            },
+            "required": [
+              "via"
+            ]
+          },
+          "then": {
+            "properties": {
+              "path_ref": false
+            }
+          }
+        },
+        {
+          "if": {
+            "not": {
+              "properties": {
+                "via": {
+                  "const": "push"
+                }
+              },
+              "required": [
+                "via"
+              ]
+            }
+          },
+          "then": {
+            "required": [
+              "path_ref"
+            ]
+          }
+        }
+      ]
     },
     "informational": {
       "type": "object",

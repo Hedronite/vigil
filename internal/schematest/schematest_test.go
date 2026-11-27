@@ -266,6 +266,7 @@ func TestFixturesValidateAsLabelled(t *testing.T) {
 
 	summarySch := compileSchema(t, filepath.Join(root, "schema", "vigil.summary.v0.schema.json"))
 	signalSch := compileSchema(t, filepath.Join(root, "schema", "vigil.signal.v0.schema.json"))
+	receiptSch := compileSchema(t, filepath.Join(root, "schema", "vigil.receipt.v0.schema.json"))
 	errorSch := compileSchema(t, filepath.Join(root, "schema", "vigil.error.v0.schema.json"))
 	configSch := compileSchema(t, filepath.Join(root, "schema", "vigil.config.v0.schema.json"))
 	simplexSch := compileSchema(t, filepath.Join(root, "schema", "simplex.probe.v0.schema.json"))
@@ -293,6 +294,7 @@ func TestFixturesValidateAsLabelled(t *testing.T) {
 		}
 	}
 	check("signal", signalSch, loadJSON, ".json")
+	check("receipt", receiptSch, loadJSON, ".json")
 	check("error", errorSch, loadJSON, ".json")
 	check("config", configSch, loadYAMLFixture, ".yaml")
 	check("overlay", overlaySch, loadYAMLFixture, ".yaml")

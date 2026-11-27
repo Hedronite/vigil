@@ -263,6 +263,71 @@ authorities:
 `,
 			want: exitcode.Usage,
 		},
+		{
+			name: "push with path_ref",
+			body: `apiVersion: vigil.config/v0
+authorities:
+  - id: simplex
+    via: push
+    path_ref: env:VIGIL_SIMPLEX_PATH
+tokens:
+  testimony_file: env:VIGIL_TESTIMONY_TOKEN_FILE
+`,
+			want: exitcode.Usage,
+		},
+		{
+			name: "push without testimony token",
+			body: `apiVersion: vigil.config/v0
+authorities:
+  - id: simplex
+    via: push
+`,
+			want: exitcode.Usage,
+		},
+		{
+			name: "unknown via",
+			body: `apiVersion: vigil.config/v0
+authorities:
+  - id: simplex
+    via: poll
+    path_ref: env:VIGIL_SIMPLEX_PATH
+`,
+			want: exitcode.Usage,
+		},
+		{
+			name: "duplicate authority id",
+			body: `apiVersion: vigil.config/v0
+authorities:
+  - id: simplex
+    path_ref: env:VIGIL_SIMPLEX_PATH
+  - id: simplex
+    path_ref: env:VIGIL_SIMPLEX_PATH
+`,
+			want: exitcode.Usage,
+		},
+		{
+			name: "push authority bad stale_after",
+			body: `apiVersion: vigil.config/v0
+authorities:
+  - id: simplex
+    via: push
+    stale_after: 0s
+tokens:
+  testimony_file: env:VIGIL_TESTIMONY_TOKEN_FILE
+`,
+			want: exitcode.Usage,
+		},
+		{
+			name: "testimony locator invalid",
+			body: `apiVersion: vigil.config/v0
+authorities:
+  - id: simplex
+    via: push
+tokens:
+  testimony_file: https://example.invalid/t
+`,
+			want: exitcode.Usage,
+		},
 	}
 	dir := t.TempDir()
 	for _, tc := range cases {

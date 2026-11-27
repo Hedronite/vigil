@@ -498,6 +498,48 @@ func TestVerdictOf(t *testing.T) {
 	}
 }
 
+// TestSimplexSummaryPushVia: a push authority is unavailable in a one-shot
+// read, never opens a path, and when it is the only authority overall is null
+// with exit 4.
+func TestSimplexSummaryPushVia(t *testing.T) {
+	pushOnly := `apiVersion: vigil.config/v0
+authorities:
+  - id: simplex
+    via: push
+tokens:
+  testimony_file: env:VIGIL_TESTIMONY_TOKEN
+`
+	tokenPath := writeText(t, "token", "x")
+	t.Setenv("VIGIL_TESTIMONY_TOKEN", tokenPath)
+
+	code, doc, _ := summarise(t, pushOnly, "--now", pinned)
+	if code != exitcode.Unavailable || colour(doc) != "null" {
+		t.Errorf("push-only: exit %d overall %s, want 4 null", code, colour(doc))
+	}
+	if len(doc.Verdicts) != 1 || doc.Verdicts[0].Source != "simplex" || doc.Verdicts[0].State != "unavailable" {
+		t.Errorf("push-only verdict = %+v", doc.Verdicts)
+	}
+	if len(doc.Sources) != 1 || doc.Sources[0].DetailCode == nil || *doc.Sources[0].DetailCode != "source_unavailable" {
+		t.Errorf("push-only source row = %+v", doc.Sources)
+	}
+
+	fileAndPush := summaryConfig + `  - id: augur
+    via: push
+tokens:
+  testimony_file: env:VIGIL_TESTIMONY_TOKEN
+`
+	publish(t, vendoredDoc(t, "green"), generated)
+	code, doc, _ = summarise(t, fileAndPush, "--now", pinned)
+	if code != exitcode.Yellow {
+		t.Errorf("file+push: exit %d, want yellow", code)
+	}
+	for _, s := range doc.Sources {
+		if s.ID == "augur" && (s.State != "unavailable" || s.DetailCode == nil || *s.DetailCode != "source_unavailable") {
+			t.Errorf("augur push source row = %+v", s)
+		}
+	}
+}
+
 // TestSimplexSummaryHelp: the subcommand has help of its own.
 func TestSimplexSummaryHelp(t *testing.T) {
 	code, out, errs := call(t, defaultHandlers(), "simplex", "summary", "--help")

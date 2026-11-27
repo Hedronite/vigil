@@ -98,8 +98,17 @@ type Backend struct {
 // Authority is a document whose own severity is combined into the summary.
 type Authority struct {
 	ID         string `yaml:"id"`
+	Via        string `yaml:"via"`
 	PathRef    string `yaml:"path_ref"`
 	StaleAfter string `yaml:"stale_after"`
+}
+
+// ViaEffective is file when via is empty or file; otherwise push.
+func (a Authority) ViaEffective() string {
+	if a.Via == "" || a.Via == "file" {
+		return "file"
+	}
+	return a.Via
 }
 
 // Source is an informational document that never colours the summary.
@@ -138,10 +147,11 @@ func (s *Seconds) UnmarshalYAML(node *yaml.Node) error {
 	return node.Decode((*int)(s))
 }
 
-// Tokens holds the paths to the read and signal tokens.
+// Tokens holds the paths to the read, signal and testimony tokens.
 type Tokens struct {
-	ReadFile   string `yaml:"read_file"`
-	SignalFile string `yaml:"signal_file"`
+	ReadFile      string `yaml:"read_file"`
+	SignalFile    string `yaml:"signal_file"`
+	TestimonyFile string `yaml:"testimony_file"`
 }
 
 // Overlay is vigil.overlay/v0: the only place an address exists, plus the map
@@ -234,27 +244,8 @@ func (c *Config) validate() error {
 		}
 	}
 
-	if len(c.Authorities) == 0 {
-		return usageErr(c.file, "authorities", "at least one authority is required")
-	}
-	authorityIDs := map[string]bool{}
-	for i, a := range c.Authorities {
-		field := fmt.Sprintf("authorities[%d]", i)
-		switch a.ID {
-		case "simplex", "augur":
-		default:
-			return usageErr(c.file, field+".id", "want simplex or augur, got %q", a.ID)
-		}
-		if authorityIDs[a.ID] {
-			return usageErr(c.file, field+".id", "duplicate id %q", a.ID)
-		}
-		authorityIDs[a.ID] = true
-		if err := checkLocator(c.file, field+".path_ref", a.PathRef); err != nil {
-			return err
-		}
-		if a.StaleAfter != "" && !durationPattern.MatchString(a.StaleAfter) {
-			return usageErr(c.file, field+".stale_after", "%q is not a duration in seconds", a.StaleAfter)
-		}
+	if err := c.validateAuthorities(); err != nil {
+		return err
 	}
 
 	sourceIDs := map[string]bool{}
@@ -315,16 +306,89 @@ func (c *Config) validate() error {
 		}
 	}
 
-	if c.Tokens != nil {
-		if c.Tokens.ReadFile != "" {
-			if err := checkLocator(c.file, "tokens.read_file", c.Tokens.ReadFile); err != nil {
-				return err
-			}
+	return c.validateTokens()
+}
+
+func (c *Config) validateAuthorities() error {
+	if len(c.Authorities) == 0 {
+		return usageErr(c.file, "authorities", "at least one authority is required")
+	}
+	seen := map[string]bool{}
+	var anyPush bool
+	for i, a := range c.Authorities {
+		push, err := checkAuthority(c.file, fmt.Sprintf("authorities[%d]", i), a, seen)
+		if err != nil {
+			return err
 		}
-		if c.Tokens.SignalFile != "" {
-			if err := checkLocator(c.file, "tokens.signal_file", c.Tokens.SignalFile); err != nil {
-				return err
-			}
+		anyPush = anyPush || push
+	}
+	return requireTestimonyToken(c.file, c, anyPush)
+}
+
+func checkAuthority(file, field string, a Authority, seen map[string]bool) (bool, error) {
+	switch a.ID {
+	case "simplex", "augur":
+	default:
+		return false, usageErr(file, field+".id", "want simplex or augur, got %q", a.ID)
+	}
+	if seen[a.ID] {
+		return false, usageErr(file, field+".id", "duplicate id %q", a.ID)
+	}
+	seen[a.ID] = true
+	push, err := checkAuthorityVia(file, field, a)
+	if err != nil {
+		return false, err
+	}
+	if a.StaleAfter != "" && !durationPattern.MatchString(a.StaleAfter) {
+		return push, usageErr(file, field+".stale_after", "%q is not a duration in seconds", a.StaleAfter)
+	}
+	return push, nil
+}
+
+func checkAuthorityVia(file, field string, a Authority) (bool, error) {
+	via := a.ViaEffective()
+	switch via {
+	case "file":
+		if err := checkLocator(file, field+".path_ref", a.PathRef); err != nil {
+			return false, err
+		}
+	case "push":
+		if a.PathRef != "" {
+			return true, usageErr(file, field+".path_ref", "forbidden when via is push")
+		}
+	default:
+		return false, usageErr(file, field+".via", "want file or push, got %q", a.Via)
+	}
+	return via == "push", nil
+}
+
+func requireTestimonyToken(file string, c *Config, anyPush bool) error {
+	if !anyPush {
+		return nil
+	}
+	if c.Tokens == nil || c.Tokens.TestimonyFile == "" {
+		return usageErr(file, "tokens.testimony_file", "required when any authority uses push")
+	}
+	return nil
+}
+
+func (c *Config) validateTokens() error {
+	if c.Tokens == nil {
+		return nil
+	}
+	for _, loc := range []struct {
+		field string
+		value string
+	}{
+		{"tokens.read_file", c.Tokens.ReadFile},
+		{"tokens.signal_file", c.Tokens.SignalFile},
+		{"tokens.testimony_file", c.Tokens.TestimonyFile},
+	} {
+		if loc.value == "" {
+			continue
+		}
+		if err := checkLocator(c.file, loc.field, loc.value); err != nil {
+			return err
 		}
 	}
 	return nil

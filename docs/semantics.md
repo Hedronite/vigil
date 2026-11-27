@@ -111,7 +111,7 @@ A `vigil.signal/v0` is ephemeral and arrives only by authenticated POST.
 
 ## 9. Transports and freshness
 
-- Vigil reads each authority's document from a file path in the config (`path_ref`; 4 MiB cap, one read per request, unknown fields ignored). It never runs the authority and never reads Simplex's `/metrics`.
+- Vigil reads each `via: file` authority's document from `path_ref` (4 MiB cap, one read per request, unknown fields ignored). A `via: push` authority is filled from the testimony store when `vigil serve` is running; a one-shot `vigil simplex summary` reports it `unavailable` with `source_unavailable` and never opens a path for it. It never runs the authority and never reads Simplex's `/metrics`.
 - The writer publishes by temp file, fsync and atomic rename, and keeps the last good file if a run fails. Vigil ages that file into `stale`.
 - `received_at` is Vigil's own clock when it first saw a document with a new pair of `generated_at` and body digest; a file that does not change keeps it and ages. A one-shot read has no memory, so it takes the file's modification time, never later than now.
 - A document is fresh only while both hold: `now - received_at <= eff_valid_for` and `now - generated_at <= eff_valid_for + skew_budget`. `eff_valid_for` is the smaller of the document's `valid_for` and `stale_after`, or `stale_after` when the document has no `valid_for`. Configuration can shorten a producer's promise and never extend it, and a producer clock that runs ahead buys no extra life.
@@ -124,11 +124,13 @@ A `vigil.signal/v0` is ephemeral and arrives only by authenticated POST.
 
 ## 10. Versioning
 
-Every document carries an `apiVersion`: `vigil.summary/v0`, `vigil.signal/v0`, `vigil.error/v0`, `vigil.config/v0`, `vigil.overlay/v0`, `vigil.sources/v0`, `vigil.targets/v0`, `vigil.query/v0`, `vigil.health/v0` and `vigil.validate/v0`. Inside `v0` the change rule is additive: a field may be added, and never removed, renamed, re-typed or given a new meaning. Anything else needs a new major. A reader ignores fields it does not know, and refuses a major it does not know.
+Every document carries an `apiVersion`: `vigil.summary/v0`, `vigil.signal/v0`, `vigil.receipt/v0`, `vigil.error/v0`, `vigil.config/v0`, `vigil.overlay/v0`, `vigil.sources/v0`, `vigil.targets/v0`, `vigil.query/v0`, `vigil.health/v0` and `vigil.validate/v0`. Inside `v0` the change rule is additive: a field may be added, and never removed, renamed, re-typed or given a new meaning. Anything else needs a new major. A reader ignores fields it does not know, and refuses a major it does not know.
+
+From V3 onward, `vigil.summary/v0` is **stable**: only additive changes within v0 are permitted, recorded here and in the summary schema description. `vigil.sources/v0` references `$defs/source` in the summary schema rather than copying it (section 3). A consumer that compiles `vigil.sources/v0` must register the summary schema as well as the sources schema, because the row shape is resolved through that `$ref`.
 
 - Vigil reading an authority document on an unknown major treats that authority as `unavailable`: severity null, reason `authority_unavailable`, `detail_code` `schema_major`. The caps in section 1 then apply. Fixture: `schema-major-mismatch`.
 - A consumer of `vigil.summary` (Facet, an agent) refuses a summary on an unknown major instead of guessing at its fields.
-- The ten Vigil schemas under `schema/` are the contract: `vigil.summary`, `vigil.signal`, `vigil.error`, `vigil.config`, `vigil.overlay`, `vigil.sources`, `vigil.targets`, `vigil.query`, `vigil.health` and `vigil.validate`, each at `v0`. `simplex.probe.v0.schema.json` beside them is a vendored copy of Simplex's own contract, not a Vigil document. A conformance test validates every fixture against them, and the binary never runs the schema validator.
+- The Vigil schemas under `schema/` are the contract: `vigil.summary`, `vigil.signal`, `vigil.receipt`, `vigil.error`, `vigil.config`, `vigil.overlay`, `vigil.sources`, `vigil.targets`, `vigil.query`, `vigil.health` and `vigil.validate`, each at `v0`. `simplex.probe.v0.schema.json` beside them is a vendored copy of Simplex's own contract, not a Vigil document. A conformance test validates every fixture against them, and the binary never runs the schema validator.
 - Two pairs are held together by the schemas. A health document or a source row with state `ok` has no `detail_code` (absent or null), and an `unavailable` one names a code; a `stale` row may name `source_stale` or nothing. Every slug in a Vigil document starts with a letter, as in config and on the command line. Tests: `internal/schematest` `TestHealthStateDetailCoupling`, `TestSourceStateDetailCoupling`, `TestVerdictStateSeverityCoupling` and `TestDocumentSlugsStartWithALetter`.
 
 ## 11. Configuration
@@ -140,13 +142,13 @@ The top-level keys are:
 | Key | Meaning |
 | --- | --- |
 | `apiVersion` | required; `vigil.config/v0` |
-| `authorities` | required, at least one: `simplex` or `augur`, each with a `path_ref` and an optional `stale_after` |
+| `authorities` | required, at least one: `simplex` or `augur`, each with `via` (`file` or `push`, default `file`). A `file` authority requires `path_ref`; a `push` authority forbids it and reads testimony from the in-memory store when `vigil serve` is running (G4). Optional `stale_after` per authority. |
 | `listen` | the bind address (section 6) |
 | `backends` | named backends, each an `id`, a `kind` (`prom` or `grafana`) and an optional `vantage` slug (section 17); duplicate ids are refused |
 | `sources` | informational documents: `scry` or `cubit`, each with a `path_ref` |
 | `queries` | named queries (section 7) |
 | `freshness` | `stale_after` (default 120s), `skew_budget` (1s to 300s, default 10s) and `declaration_grace_s` (whole seconds, 0 to 86400, default 240); the loader fills each one left out |
-| `tokens` | `read_file` and `signal_file`, the token file locations (section 6) |
+| `tokens` | `read_file`, `signal_file` and `testimony_file` (the testimony write token; required in the schema when any authority uses `via: push`) — token file locations (section 6) |
 
 Named backends and named queries come from config only. No config field takes a URL, an address or a selector: a backend's address lives in the off-repo overlay (`vigil.overlay/v0`), keyed by the backend ids declared here. A locator (`path_ref`, a token file) is an environment reference (`env:NAME`) or an absolute path with no traversal. Fixtures for the refusals: `testdata/config/invalid/no-authorities.yaml`, `authority-unknown.yaml`, `query-url.yaml`, `path-ref-traversal.yaml`.
 

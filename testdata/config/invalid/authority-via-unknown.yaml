@@ -1,0 +1,5 @@
+apiVersion: vigil.config/v0
+authorities:
+  - id: simplex
+    via: poll
+    path_ref: env:VIGIL_SIMPLEX_PATH
