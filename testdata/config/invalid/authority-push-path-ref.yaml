@@ -1,0 +1,7 @@
+apiVersion: vigil.config/v0
+authorities:
+  - id: simplex
+    via: push
+    path_ref: /var/lib/vigil/simplex.json
+tokens:
+  testimony_file: env:VIGIL_TESTIMONY_TOKEN_FILE

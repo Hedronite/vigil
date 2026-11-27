@@ -1,0 +1,7 @@
+{
+  "apiVersion": "vigil.receipt/v0",
+  "source": "simplex",
+  "generated_at": "2026-11-13T18:00:00Z",
+  "received_at": "2026-11-13T18:00:05Z",
+  "status": "ok"
+}

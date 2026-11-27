@@ -223,13 +223,23 @@ func TestDocumentSlugsStartWithALetter(t *testing.T) {
 		}
 		runMutants(t, schema, base, cases)
 	}
-	check(summarySchema, greenGolden, []edit{{"scry", map[string]any{}}}, map[string]string{
-		"verdicts/0/source":  "/verdicts/0/source",
-		"vantage/id":         "/vantage/id",
-		"hosts/0/id":         "/hosts/0/id",
-		"sources/0/id":       "/sources/0/id",
-		"sources/0/vantage":  "/sources/0/vantage",
-		"scry/cluster_alias": "/scry/cluster_alias",
+	check(summarySchema, greenGolden, nil, map[string]string{
+		"verdicts/0/source": "/verdicts/0/source",
+		"vantage/id":        "/vantage/id",
+		"hosts/0/id":        "/hosts/0/id",
+		"sources/0/id":      "/sources/0/id",
+		"sources/0/vantage": "/sources/0/vantage",
+	})
+	runMutants(t, summarySchema, greenGolden, []mutant{
+		{name: "cluster_alias digit-first", edits: []edit{
+			{"scry", map[string]any{"cluster_alias": "9lab"}},
+		}},
+		{name: "cluster_alias letter-first", edits: []edit{
+			{"scry", map[string]any{"cluster_alias": "lab9"}},
+		}},
+		{name: "cluster_alias leading hyphen", at: "/scry/cluster_alias", edits: []edit{
+			{"scry", map[string]any{"cluster_alias": "-lab"}},
+		}},
 	})
 	check("vigil.query.v0.schema.json", "query/valid/one-host.json", nil, map[string]string{
 		"vantage":       "/vantage",
