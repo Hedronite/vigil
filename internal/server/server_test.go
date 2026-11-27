@@ -24,7 +24,9 @@ func loopbackAddr(t *testing.T) string {
 		t.Fatal(err)
 	}
 	addr := ln.Addr().String()
-	_ = ln.Close()
+	if err := ln.Close(); err != nil {
+		t.Fatal(err)
+	}
 	return addr
 }
 
@@ -53,7 +55,9 @@ func startServer(t *testing.T, addr string, hash [32]byte, build DocumentBuilder
 	for time.Now().Before(deadline) {
 		conn, err := net.DialTimeout("tcp", addr, 50*time.Millisecond)
 		if err == nil {
-			_ = conn.Close()
+			if closeErr := conn.Close(); closeErr != nil {
+				t.Fatal(closeErr)
+			}
 			return cancel, addr
 		}
 		time.Sleep(10 * time.Millisecond)

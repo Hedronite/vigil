@@ -49,7 +49,9 @@ func loopbackListen(t *testing.T) string {
 		t.Fatal(err)
 	}
 	addr := ln.Addr().String()
-	_ = ln.Close()
+	if err := ln.Close(); err != nil {
+		t.Fatal(err)
+	}
 	return addr
 }
 
@@ -71,7 +73,9 @@ func waitListen(t *testing.T, addr string) {
 	for time.Now().Before(deadline) {
 		c, err := net.DialTimeout("tcp", addr, 50*time.Millisecond)
 		if err == nil {
-			_ = c.Close()
+			if closeErr := c.Close(); closeErr != nil {
+				t.Fatal(closeErr)
+			}
 			return
 		}
 		time.Sleep(20 * time.Millisecond)
@@ -90,7 +94,7 @@ func fetchSummary(t *testing.T, addr, token string) (string, int) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer func() { _ = resp.Body.Close() }()
+	defer resp.Body.Close()
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		t.Fatal(err)
@@ -163,7 +167,9 @@ hosts:
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go func() {
-		_ = run(ctx, []string{"serve", "--config", cfg, "--overlay", overlay, "--now", pinned}, io.Discard, io.Discard, liveHandlers())
+		if code := run(ctx, []string{"serve", "--config", cfg, "--overlay", overlay, "--now", pinned}, io.Discard, io.Discard, liveHandlers()); code != 0 {
+			t.Errorf("serve exit %d", code)
+		}
 	}()
 	waitListen(t, addr)
 	req, err := http.NewRequest(http.MethodGet, "http://"+addr+"/v0/sources", nil)
