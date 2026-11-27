@@ -94,8 +94,10 @@ func fetchSummary(t *testing.T, addr, token string) (string, int) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer resp.Body.Close()
 	body, err := io.ReadAll(resp.Body)
+	if closeErr := resp.Body.Close(); closeErr != nil && err == nil {
+		err = closeErr
+	}
 	if err != nil {
 		t.Fatal(err)
 	}
