@@ -1,5 +1,5 @@
 # Go-TOPS configuration (GO_TOPS.md §9), written by gotops init.
-protocol: "0.4.5"
+protocol: "0.4.6"
 version: "0.1.0"
 module: github.com/Hedronite/vigil
 class: binary-service
