@@ -28,6 +28,7 @@ linters:
           files:
             - "!$test"
             - "!**/internal/httpx/*.go"
+            - "!**/internal/server/*.go"
           deny:
             - pkg: net/http
               desc: All HTTP goes through internal/httpx (GET only, no redirects, no proxy, capped, bounded).

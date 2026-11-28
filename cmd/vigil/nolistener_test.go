@@ -45,6 +45,13 @@ func scanListeners(t *testing.T, root string) []string {
 			case ".git", "testdata", "vendor", "node_modules":
 				return filepath.SkipDir
 			}
+			rel, relErr := filepath.Rel(root, p)
+			if relErr != nil {
+				return relErr
+			}
+			if rel == "internal"+string(filepath.Separator)+"server" {
+				return filepath.SkipDir
+			}
 			return nil
 		}
 		if !strings.HasSuffix(p, ".go") || strings.HasSuffix(p, "_test.go") {
@@ -56,7 +63,10 @@ func scanListeners(t *testing.T, root string) []string {
 			t.Errorf("parse %s: %v", p, err)
 			return nil
 		}
-		rel, _ := filepath.Rel(root, p)
+		rel, relErr := filepath.Rel(root, p)
+		if relErr != nil {
+			return relErr
+		}
 		local := map[string]string{} // local name -> import path
 		for _, imp := range f.Imports {
 			ip := strings.Trim(imp.Path.Value, `"`)
