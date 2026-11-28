@@ -29,9 +29,7 @@ func TestPostSignalBodyCap(t *testing.T) {
 	if rec.Code != http.StatusRequestEntityTooLarge {
 		t.Fatalf("status = %d", rec.Code)
 	}
-	if !strings.Contains(rec.Body.String(), "body_cap") {
-		t.Fatalf("body %q", rec.Body.String())
-	}
+	assertVigilCode(t, rec.Body.String(), "body_cap")
 }
 
 func TestPostSignalNilDeps(t *testing.T) {
@@ -80,9 +78,10 @@ func TestPostSignalBodyLengthBoundary(t *testing.T) {
 		req.Header.Set("Authorization", "Bearer sig")
 		rec := httptest.NewRecorder()
 		h.ServeHTTP(rec, req)
-		if rec.Code != tc.code || !strings.Contains(rec.Body.String(), tc.codeName) {
-			t.Fatalf("size %d: status=%d body=%q", tc.size, rec.Code, rec.Body.String())
+		if rec.Code != tc.code {
+			t.Fatalf("size %d: status=%d", tc.size, rec.Code)
 		}
+		assertVigilCode(t, rec.Body.String(), tc.codeName)
 	}
 }
 
@@ -97,9 +96,10 @@ func TestPostSignalBadRemoteAddr(t *testing.T) {
 	req.Header.Set("Authorization", "Bearer sig")
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
-	if rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "invalid_signal") {
-		t.Fatalf("status=%d body=%q", rec.Code, rec.Body.String())
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d", rec.Code)
 	}
+	assertVigilCode(t, rec.Body.String(), "invalid_signal")
 }
 
 func TestPruneSignalsExitsOnCancel(t *testing.T) {
@@ -148,9 +148,7 @@ func TestPostSignalRateLimited(t *testing.T) {
 			if rec.Code != http.StatusTooManyRequests {
 				t.Fatalf("want 429, got %d", rec.Code)
 			}
-			if !strings.Contains(rec.Body.String(), "rate_limited") {
-				t.Fatalf("body %q", rec.Body.String())
-			}
+			assertVigilCode(t, rec.Body.String(), "rate_limited")
 		}
 		if _, err := io.ReadAll(rec.Body); err != nil {
 			t.Fatal(err)

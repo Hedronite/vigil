@@ -14,17 +14,21 @@ const (
 	maxTTL     = time.Hour
 )
 
+const (
+	minTTLSeconds = 60
+	maxTTLSeconds = 3600
+)
+
 // ClampTTL returns the stored TTL duration, defaulting and clamping per semantics §8.
 func ClampTTL(seconds int) time.Duration {
 	if seconds == 0 {
 		return defaultTTL
 	}
-	d := time.Duration(seconds) * time.Second
-	if d < minTTL {
+	if seconds < minTTLSeconds {
 		return minTTL
 	}
-	if d > maxTTL {
+	if seconds > maxTTLSeconds {
 		return maxTTL
 	}
-	return d
+	return time.Duration(seconds) * time.Second
 }

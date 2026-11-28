@@ -20,16 +20,9 @@ func runServe(ctx context.Context, inv Invocation, allowNonLoopback bool) error 
 			return err
 		}
 	}
-	readHash, err := loadReadTokenHash(cfg)
+	readHash, sigHash, err := loadServeTokenHashes(cfg)
 	if err != nil {
 		return err
-	}
-	if cfg.Tokens == nil || cfg.Tokens.SignalFile == "" {
-		return exitcode.Newf(exitcode.Startup, "missing_signal_token", "the signal token file is not configured")
-	}
-	sigHash, err := server.LoadSignalTokenHash(cfg.Tokens.SignalFile)
-	if err != nil {
-		return signalTokenStartup(err)
 	}
 	if err := server.CheckBind(cfg.Listen, allowNonLoopback); err != nil {
 		return exitcode.Newf(exitcode.Startup, "non_loopback_listen", err.Error())

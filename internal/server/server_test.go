@@ -208,6 +208,18 @@ func TestTokenModeAndEmpty(t *testing.T) {
 	}
 }
 
+func TestRunRejectsZeroSignalToken(t *testing.T) {
+	addr := loopbackAddr(t)
+	ctx := context.Background()
+	err := Run(ctx, Options{
+		Listen: addr, ReadToken: tokenHash(t, "r"), Build: staticDoc(t),
+		Limiter: &signals.Limiter{},
+	})
+	if err == nil {
+		t.Fatal("expected missing signal token hash")
+	}
+}
+
 func TestRunReturnsServeError(t *testing.T) {
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {

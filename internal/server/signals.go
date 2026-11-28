@@ -11,6 +11,8 @@ import (
 	"github.com/Hedronite/vigil/internal/signals"
 )
 
+var signalPruneInterval = time.Minute
+
 func signalRoutes(opts Options) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
@@ -116,7 +118,7 @@ func pruneSignals(ctx context.Context, store *signals.Store, now func() time.Tim
 	if store == nil {
 		return
 	}
-	tick := time.NewTicker(time.Minute)
+	tick := time.NewTicker(signalPruneInterval)
 	defer tick.Stop()
 	for {
 		select {
