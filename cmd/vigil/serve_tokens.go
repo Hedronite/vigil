@@ -16,7 +16,11 @@ func loadReadTokenHash(cfg *config.Config) ([32]byte, error) {
 	if err != nil {
 		return [32]byte{}, readTokenStartup(err)
 	}
-	return server.LoadReadTokenHash(path)
+	hash, err := server.LoadReadTokenHash(path)
+	if err != nil {
+		return [32]byte{}, readTokenStartup(err)
+	}
+	return hash, nil
 }
 
 func loadSignalTokenHash(cfg *config.Config) ([32]byte, error) {
@@ -27,7 +31,11 @@ func loadSignalTokenHash(cfg *config.Config) ([32]byte, error) {
 	if err != nil {
 		return [32]byte{}, signalTokenStartup(err)
 	}
-	return server.LoadReadTokenHash(path)
+	hash, err := server.LoadReadTokenHash(path)
+	if err != nil {
+		return [32]byte{}, signalTokenStartup(err)
+	}
+	return hash, nil
 }
 
 func readTokenStartup(err error) error {

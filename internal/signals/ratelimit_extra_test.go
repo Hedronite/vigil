@@ -1,7 +1,6 @@
 package signals
 
 import (
-	"net/http/httptest"
 	"net/netip"
 	"testing"
 )
@@ -16,10 +15,8 @@ func TestLimiterPeerEviction(t *testing.T) {
 	}
 }
 
-func TestRemoteAddrInvalid(t *testing.T) {
-	req := httptest.NewRequest("GET", "/", nil)
-	req.RemoteAddr = "not-an-addr"
-	if _, err := RemoteAddr(req); err == nil {
+func TestParseHostAddrInvalid(t *testing.T) {
+	if _, err := ParseHostAddr("not-an-addr"); err == nil {
 		t.Fatal("expected parse error")
 	}
 }

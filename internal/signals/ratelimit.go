@@ -2,7 +2,6 @@ package signals
 
 import (
 	"net"
-	"net/http"
 	"net/netip"
 	"sync"
 )
@@ -65,24 +64,19 @@ func (l *Limiter) claim() int {
 			return i
 		}
 	}
-	oldest := l.stalestPeer()
-	l.slots[oldest].addr = netip.Addr{}
-	return oldest
-}
-
-func (l *Limiter) stalestPeer() int {
 	oldest := 0
 	for i := 1; i < maxPeers; i++ {
 		if l.slots[i].sec < l.slots[oldest].sec {
 			oldest = i
 		}
 	}
+	l.slots[oldest].addr = netip.Addr{}
 	return oldest
 }
 
-// RemoteAddr parses the client address from an HTTP request.
-func RemoteAddr(r *http.Request) (netip.Addr, error) {
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
+// ParseHostAddr splits a host:port remote address.
+func ParseHostAddr(remote string) (netip.Addr, error) {
+	host, _, err := net.SplitHostPort(remote)
 	if err != nil {
 		return netip.Addr{}, err
 	}

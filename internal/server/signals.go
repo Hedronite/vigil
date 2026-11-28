@@ -60,7 +60,7 @@ func postSignal(opts Options) http.HandlerFunc {
 }
 
 func postRateOK(w http.ResponseWriter, r *http.Request, opts Options) bool {
-	addr, err := signals.RemoteAddr(r)
+	addr, err := signals.ParseHostAddr(r.RemoteAddr)
 	if err != nil {
 		writeAPI(w, http.StatusBadRequest, "invalid_signal")
 		return false

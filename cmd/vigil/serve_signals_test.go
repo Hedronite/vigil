@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -37,6 +39,35 @@ func postSignal(t *testing.T, addr, token string, body []byte) (int, string) {
 		t.Fatal(err)
 	}
 	return resp.StatusCode, string(b)
+}
+
+func TestServeSignalTokenUnusable(t *testing.T) {
+	publish(t, vendoredDoc(t, "green"), generated)
+	dir := t.TempDir()
+	readPath := filepath.Join(dir, "read.token")
+	sigPath := filepath.Join(dir, "signal.token")
+	if err := os.WriteFile(readPath, []byte("r"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(sigPath, []byte("s"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("VIGIL_READ_TOKEN_FILE", readPath)
+	t.Setenv("VIGIL_SIGNAL_TOKEN_FILE", sigPath)
+	cfg := `apiVersion: vigil.config/v0
+listen: "127.0.0.1:10082"
+authorities:
+  - id: simplex
+    path_ref: env:VIGIL_TEST_SIMPLEX
+tokens:
+  read_file: env:VIGIL_READ_TOKEN_FILE
+  signal_file: env:VIGIL_SIGNAL_TOKEN_FILE
+`
+	path := writeText(t, "config.yaml", cfg)
+	code, _, errs := call(t, liveHandlers(), "serve", "--config", path)
+	if code != exitcode.Startup || !strings.Contains(errs, "token_unusable") {
+		t.Fatalf("unusable signal token: exit=%d stderr=%q", code, errs)
+	}
 }
 
 func TestServeMissingSignalTokenConfig(t *testing.T) {
