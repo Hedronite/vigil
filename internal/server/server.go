@@ -48,6 +48,10 @@ func (o Options) now() time.Time {
 
 // Run listens until ctx ends, then shuts down. A bind failure returns an error.
 func Run(ctx context.Context, opts Options) error {
+	var zeroToken [32]byte
+	if opts.SignalToken == zeroToken {
+		return fmt.Errorf("signal token hash is missing")
+	}
 	if err := CheckBind(opts.Listen, opts.AllowNonLoopback); err != nil {
 		return err
 	}

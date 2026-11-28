@@ -67,8 +67,8 @@ func TestPostSignalBodyLengthBoundary(t *testing.T) {
 		Limiter: &signals.Limiter{}, Now: func() time.Time { return now },
 	})
 	for _, tc := range []struct {
-		size     int
-		code     int
+		size int
+		code int
 		codeName string
 	}{
 		{signals.MaxBody + 1, http.StatusRequestEntityTooLarge, "body_cap"},
