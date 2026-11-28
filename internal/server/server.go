@@ -36,7 +36,7 @@ type Options struct {
 	Signals          *signals.Store
 	Limiter          *signals.Limiter
 	Now              func() time.Time
-	Listener         net.Listener // tests only
+	Listener         net.Listener  // tests only
 	PruneEvery       time.Duration // tests only; zero uses signalPruneInterval
 }
 

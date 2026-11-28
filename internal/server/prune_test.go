@@ -74,8 +74,9 @@ func TestRunWithoutSignalsStoreStillBinds(t *testing.T) {
 	addr := loopbackAddr(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
+	errCh := make(chan error, 1)
 	go func() {
-		_ = Run(ctx, Options{
+		errCh <- Run(ctx, Options{
 			Listen: addr, ReadToken: tokenHash(t, "r"), SignalToken: tokenHash(t, "s"),
 			Build: staticDoc(t), Limiter: &signals.Limiter{},
 		})
@@ -114,8 +115,9 @@ func TestRunPrunesExpiredWhenSignalsPresent(t *testing.T) {
 	addr := loopbackAddr(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
+	errCh := make(chan error, 1)
 	go func() {
-		_ = Run(ctx, Options{
+		errCh <- Run(ctx, Options{
 			Listen: addr, ReadToken: tokenHash(t, "r"), SignalToken: tokenHash(t, "s"),
 			Build: staticDoc(t), Signals: store, Limiter: &signals.Limiter{},
 			Now: nowFn, PruneEvery: 15 * time.Millisecond,
