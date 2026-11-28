@@ -45,7 +45,9 @@ func TestRunWithoutSignals(t *testing.T) {
 	for time.Now().Before(deadline) {
 		c, err := net.DialTimeout("tcp", addr, 50*time.Millisecond)
 		if err == nil {
-			_ = c.Close()
+			if closeErr := c.Close(); closeErr != nil {
+				t.Fatal(closeErr)
+			}
 			cancel()
 			break
 		}

@@ -63,8 +63,10 @@ func validateInbound(in inbound) (PostFields, error) {
 	if in.Severity != "info" && in.Severity != "notice" {
 		return PostFields{}, errInvalid
 	}
-	if in.Note != "" && !NoteOK(in.Note) {
-		return PostFields{}, errInvalid
+	if in.Note != "" {
+		if !NoteOK(in.Note) {
+			return PostFields{}, errInvalid
+		}
 	}
 	ttl := 0
 	if in.TTL != nil {
