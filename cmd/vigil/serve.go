@@ -24,10 +24,15 @@ func runServe(ctx context.Context, inv Invocation, allowNonLoopback bool) error 
 	if err != nil {
 		return err
 	}
+	testimonyHash, err := loadTestimonyTokenHash(cfg)
+	if err != nil {
+		return err
+	}
 	if err := server.CheckBind(cfg.Listen, allowNonLoopback); err != nil {
 		return exitcode.Newf(exitcode.Startup, "non_loopback_listen", err.Error())
 	}
 	st := server.NewState()
+	testimony := server.NewTestimonyStore()
 	started := time.Now().UTC()
 	clock := serveClock(inv)
 	build := func(callCtx context.Context, at time.Time) (*summary.Document, error) {
@@ -35,11 +40,12 @@ func runServe(ctx context.Context, inv Invocation, allowNonLoopback bool) error 
 		if !inv.Now.IsZero() {
 			t = inv.Now.UTC()
 		}
-		return serveSummary(callCtx, cfg, st, started, t)
+		return serveSummary(callCtx, cfg, st, testimony, started, t)
 	}
 	ring := signals.NewStore()
 	if err := server.Run(ctx, server.Options{
 		Listen: cfg.Listen, ReadToken: readHash, SignalToken: sigHash,
+		TestimonyToken: testimonyHash, Testimony: testimony, Config: cfg, State: st,
 		AllowNonLoopback: allowNonLoopback, Build: build,
 		Signals: ring, Limiter: &signals.Limiter{}, Now: clock,
 	}); err != nil {

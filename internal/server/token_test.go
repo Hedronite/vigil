@@ -43,6 +43,31 @@ func TestLoadSignalTokenHash(t *testing.T) {
 	}
 }
 
+func TestTestimonyTokenPathEnvAndMissing(t *testing.T) {
+	_, err := TestimonyTokenPath("")
+	if err != ErrTokenMissing {
+		t.Fatalf("empty = %v, want ErrTokenMissing", err)
+	}
+	want := filepath.Join(t.TempDir(), "t")
+	t.Setenv(testimonyTokenEnv, want)
+	got, err := TestimonyTokenPath("/ignored")
+	if err != nil || got != want {
+		t.Fatalf("env = %q %v, want %q", got, err, want)
+	}
+}
+
+func TestLoadTestimonyTokenHash(t *testing.T) {
+	_, err := LoadTestimonyTokenHash("")
+	if err != ErrTokenMissing {
+		t.Fatalf("missing = %v", err)
+	}
+	okPath := tokenFile(t, "secret", 0o600)
+	t.Setenv(testimonyTokenEnv, okPath)
+	if _, err := LoadTestimonyTokenHash("ignored"); err != nil {
+		t.Fatalf("load = %v", err)
+	}
+}
+
 func TestSignalTokenPathEnvAndMissing(t *testing.T) {
 	_, err := SignalTokenPath("")
 	if err != ErrTokenMissing {

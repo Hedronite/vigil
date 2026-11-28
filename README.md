@@ -4,7 +4,7 @@ Vigil is a Go CLI over named ops backends (Prometheus, Grafana) and the verdict
 documents its authorities publish. It turns the health of a mesh into one
 document, `vigil.summary/v0`, that a person, an agent or Facet can read without
 knowing where anything lives. Today it builds that document from Simplex on the
-command line; serving it over HTTP is planned for V3 (not yet shipped).
+command line. V3 also serves it over HTTP on a loopback listener (`vigil serve`).
 
 What Vigil does today (V1 and V2):
 
@@ -23,9 +23,11 @@ Planned (not yet shipped):
   authority is not read yet. It is reported `unavailable`
   (`source_unavailable`), which holds `overall` at YELLOW or worse, so list
   only `simplex` under `authorities` until it ships.
-- **V3 (not yet shipped):** will accept ephemeral **signals** from
-  authenticated callers over a loopback HTTP listener (`vigil serve`). A signal
-  is information, never a verdict.
+- **V3 (shipped):** `vigil serve` on loopback exposes read routes, authenticated
+  **signals** (`POST /v0/signals`) and **testimony push** for Simplex
+  (`POST /v0/testimony/simplex` with the testimony token). Signals are
+  information, never a verdict. Binding on production hosts outside loopback
+  still needs its own go-ahead.
 
 What Vigil does not do: it is not a prober (it never dials a host), it offers
 no free-form PromQL, it has no web UI (Grafana stays the deep-metrics UI,
@@ -44,7 +46,8 @@ prom (lab) · grafana (lab) ──named──▶          Cubit / Scry ──▶
 
 `vigil simplex summary` emits `vigil.summary/v0`: a single JSON object with an
 `apiVersion`. Consumers refuse an unknown major version; fields are additive
-within `v0`. Serving it over HTTP is V3 (not yet shipped).
+within `v0`. On a running listener, `GET /v0/summary` returns the same bytes as
+`vigil simplex summary --json`.
 
 - `overall` is the worst severity among the readable verdicts in
   `verdicts[]`, after three caps and nothing else. Stale cap: a stale verdict

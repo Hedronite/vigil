@@ -45,6 +45,36 @@ func loadServeTokenHashes(cfg *config.Config) ([32]byte, [32]byte, error) {
 	return read, sig, nil
 }
 
+func anyPushAuthority(cfg *config.Config) bool {
+	for _, a := range cfg.Authorities {
+		if a.ViaEffective() == "push" {
+			return true
+		}
+	}
+	return false
+}
+
+func loadTestimonyTokenHash(cfg *config.Config) ([32]byte, error) {
+	if !anyPushAuthority(cfg) {
+		return [32]byte{}, nil
+	}
+	if cfg.Tokens == nil {
+		return [32]byte{}, exitcode.Newf(exitcode.Startup, "missing_testimony_token", "the testimony token file is not configured")
+	}
+	if cfg.Tokens.TestimonyFile == "" {
+		return [32]byte{}, exitcode.Newf(exitcode.Startup, "missing_testimony_token", "the testimony token file is not configured")
+	}
+	hash, err := server.LoadTestimonyTokenHash(cfg.Tokens.TestimonyFile)
+	if err != nil {
+		return [32]byte{}, testimonyTokenStartup(err)
+	}
+	var zero [32]byte
+	if hash == zero {
+		return [32]byte{}, exitcode.Newf(exitcode.Startup, "token_unusable", "the testimony token file cannot be used")
+	}
+	return hash, nil
+}
+
 func readTokenStartup(err error) error {
 	if errors.Is(err, server.ErrTokenMissing) {
 		return exitcode.Newf(exitcode.Startup, "missing_read_token", "the read token file is not configured")
@@ -57,4 +87,11 @@ func signalTokenStartup(err error) error {
 		return exitcode.Newf(exitcode.Startup, "missing_signal_token", "the signal token file is not configured")
 	}
 	return exitcode.Newf(exitcode.Startup, "token_unusable", "the signal token file cannot be used")
+}
+
+func testimonyTokenStartup(err error) error {
+	if errors.Is(err, server.ErrTokenMissing) {
+		return exitcode.Newf(exitcode.Startup, "missing_testimony_token", "the testimony token file is not configured")
+	}
+	return exitcode.Newf(exitcode.Startup, "token_unusable", "the testimony token file cannot be used")
 }

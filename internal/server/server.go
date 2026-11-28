@@ -10,7 +10,9 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/Hedronite/vigil/internal/config"
 	"github.com/Hedronite/vigil/internal/signals"
+	"github.com/Hedronite/vigil/internal/simplexdoc"
 	"github.com/Hedronite/vigil/internal/summary"
 )
 
@@ -38,6 +40,10 @@ type Options struct {
 	Now              func() time.Time
 	Listener         net.Listener  // tests only
 	PruneEvery       time.Duration // tests only; zero uses signalPruneInterval
+	TestimonyToken   [32]byte
+	Testimony        *TestimonyStore
+	Config           *config.Config
+	State            *State
 }
 
 func (o Options) now() time.Time {
@@ -47,26 +53,36 @@ func (o Options) now() time.Time {
 	return time.Now().UTC()
 }
 
-// Run listens until ctx ends, then shuts down. A bind failure returns an error.
-func Run(ctx context.Context, opts Options) error {
+func validateRunOptions(opts Options) error {
 	var zeroToken [32]byte
 	if opts.SignalToken == zeroToken {
 		return fmt.Errorf("signal token hash is missing")
 	}
-	if err := CheckBind(opts.Listen, opts.AllowNonLoopback); err != nil {
+	if opts.needsTestimonyToken() && opts.TestimonyToken == zeroToken {
+		return fmt.Errorf("testimony token hash is missing")
+	}
+	return CheckBind(opts.Listen, opts.AllowNonLoopback)
+}
+
+func openListener(opts Options) (net.Listener, error) {
+	if opts.Listener != nil {
+		return opts.Listener, nil
+	}
+	ln, err := net.Listen("tcp", opts.Listen)
+	if err != nil {
+		return nil, fmt.Errorf("bind %s: %w", opts.Listen, err)
+	}
+	return ln, nil
+}
+
+// Run listens until ctx ends, then shuts down. A bind failure returns an error.
+func Run(ctx context.Context, opts Options) error {
+	if err := validateRunOptions(opts); err != nil {
 		return err
 	}
-	var (
-		ln  net.Listener
-		err error
-	)
-	if opts.Listener != nil {
-		ln = opts.Listener
-	} else {
-		ln, err = net.Listen("tcp", opts.Listen)
-		if err != nil {
-			return fmt.Errorf("bind %s: %w", opts.Listen, err)
-		}
+	ln, err := openListener(opts)
+	if err != nil {
+		return err
 	}
 	srv := &http.Server{
 		Handler:           routes(opts),
@@ -111,7 +127,12 @@ func routes(opts Options) http.Handler {
 	mux.Handle("/v0/hosts/{id}", auth(hostByID(opts.Build)))
 	mux.Handle("/v0/sources", auth(sourcesJSON(opts.Build)))
 	mux.Handle("/v0/signals", signalRoutes(opts))
+	mux.Handle("/v0/testimony/{source}", testimonyRoutes(opts))
 	return recoverHTTP(notFound(mux))
+}
+
+func (o Options) needsTestimonyToken() bool {
+	return o.Config != nil && pushAuthorityConfigured(o.Config, simplexdoc.Source)
 }
 
 func allowGET(next http.Handler) http.Handler {

@@ -73,6 +73,57 @@ func TestLoadServeTokenHashesRequiresNonemptySignalFile(t *testing.T) {
 	}
 }
 
+func TestLoadTestimonyTokenHashSkipsWhenNoPush(t *testing.T) {
+	cfg := &config.Config{Tokens: &config.Tokens{TestimonyFile: ""}}
+	h, err := loadTestimonyTokenHash(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var zero [32]byte
+	if h != zero {
+		t.Fatal("expected zero hash without push")
+	}
+}
+
+func TestLoadTestimonyTokenHashRejectsMissingWhenPush(t *testing.T) {
+	cfg := &config.Config{
+		Authorities: []config.Authority{{ID: "simplex", Via: "push"}},
+	}
+	_, err := loadTestimonyTokenHash(cfg)
+	if ee, ok := exitcode.As(err); !ok || ee.Code != "missing_testimony_token" {
+		t.Fatalf("nil tokens err = %v", err)
+	}
+	cfg = &config.Config{
+		Authorities: []config.Authority{{ID: "simplex", Via: "push"}},
+		Tokens:      &config.Tokens{TestimonyFile: ""},
+	}
+	_, err = loadTestimonyTokenHash(cfg)
+	if ee, ok := exitcode.As(err); !ok || ee.Code != "missing_testimony_token" {
+		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestLoadTestimonyTokenHashLoadsWhenPush(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "testimony.token")
+	if err := os.WriteFile(path, []byte("witness"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("VIGIL_TESTIMONY_TOKEN_FILE", path)
+	cfg := &config.Config{
+		Authorities: []config.Authority{{ID: "simplex", Via: "push"}},
+		Tokens:      &config.Tokens{TestimonyFile: "env:VIGIL_TESTIMONY_TOKEN_FILE"},
+	}
+	h, err := loadTestimonyTokenHash(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want, err := server.LoadTestimonyTokenHash("env:VIGIL_TESTIMONY_TOKEN_FILE")
+	if err != nil || h != want {
+		t.Fatalf("hash mismatch")
+	}
+}
+
 func TestLoadServeTokenHashesLoadsGoodTokens(t *testing.T) {
 	dir := t.TempDir()
 	readPath := filepath.Join(dir, "read.token")
