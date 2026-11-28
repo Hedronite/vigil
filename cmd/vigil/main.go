@@ -1,6 +1,6 @@
 // Command vigil is the Go ops query surface. V1 added the backend commands:
 // prom targets, prom query, grafana health and sources. V2 added simplex
-// summary, which reads an authority's document. The listener arrives in V3.
+// summary, which reads an authority's document. V3 adds serve, the HTTP listener.
 package main
 
 import (
