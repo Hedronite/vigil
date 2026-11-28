@@ -9,7 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync/atomic"
+	"sync"
 	"testing"
 	"time"
 
@@ -145,9 +145,13 @@ func getSummaryDoc(t *testing.T, addr, readToken string) summary.Document {
 func TestServeTestimonyEndToEnd(t *testing.T) {
 	cfgPath, readTok, witTok, addr := pushServeFixture(t)
 	start := time.Date(2026, 11, 13, 18, 0, 0, 0, time.UTC)
-	var cur atomic.Value
-	cur.Store(start)
-	nowFn := func() time.Time { return cur.Load().(time.Time) }
+	var nowMu sync.Mutex
+	cur := start
+	nowFn := func() time.Time {
+		nowMu.Lock()
+		defer nowMu.Unlock()
+		return cur
+	}
 	startPushServe(t, cfgPath, nowFn)
 	waitListen(t, addr)
 	green := []byte(vendoredDoc(t, "green"))
@@ -159,7 +163,9 @@ func TestServeTestimonyEndToEnd(t *testing.T) {
 	if doc.Overall == nil || *doc.Overall != "GREEN" {
 		t.Fatalf("overall = %v", doc.Overall)
 	}
-	cur.Store(start.Add(121 * time.Second))
+	nowMu.Lock()
+	cur = start.Add(121 * time.Second)
+	nowMu.Unlock()
 	doc = getSummaryDoc(t, addr, readTok)
 	if doc.Overall == nil || *doc.Overall != "YELLOW" {
 		t.Fatalf("stale overall = %v", doc.Overall)
@@ -171,7 +177,9 @@ func TestServeTestimonyEndToEnd(t *testing.T) {
 	if code != http.StatusAccepted {
 		t.Fatalf("post red: %d", code)
 	}
-	cur.Store(start.Add(130 * time.Second))
+	nowMu.Lock()
+	cur = start.Add(130 * time.Second)
+	nowMu.Unlock()
 	doc = getSummaryDoc(t, addr, readTok)
 	if doc.Overall == nil || *doc.Overall != "RED" {
 		t.Fatalf("red overall = %v", doc.Overall)

@@ -188,7 +188,10 @@ func TestTestimonyDecodeErrorsLeaveStoreEmpty(t *testing.T) {
 	badMajor := []byte(`{"apiVersion":"simplex.probe/v1","generated_at":"2026-11-13T18:00:00Z"}`)
 	rec := postTestimonyHTTP(t, opts, "simplex", "witness", badMajor)
 	assertVigilCode(t, rec.Body.String(), reasons.SchemaMajor)
-	obs, _ := opts.Testimony.Observation("simplex", opts.State, opts.now())
+	obs, err := opts.Testimony.Observation("simplex", opts.State, opts.now())
+	if err != nil {
+		t.Fatal(err)
+	}
 	if obs != nil {
 		t.Fatal("store changed")
 	}
