@@ -11,7 +11,10 @@ import (
 	"github.com/Hedronite/vigil/internal/simplexdoc"
 )
 
-const readTokenEnv = "VIGIL_READ_TOKEN_FILE"
+const (
+	readTokenEnv   = "VIGIL_READ_TOKEN_FILE"
+	signalTokenEnv = "VIGIL_SIGNAL_TOKEN_FILE"
+)
 
 var (
 	// ErrTokenMissing means no read token path was configured.
@@ -22,6 +25,17 @@ var (
 	ErrTokenEmpty = errors.New("token file is empty")
 )
 
+// SignalTokenPath resolves the signal-token file path from config and environment.
+func SignalTokenPath(locator string) (string, error) {
+	if path := strings.TrimSpace(os.Getenv(signalTokenEnv)); path != "" {
+		return path, nil
+	}
+	if locator == "" {
+		return "", ErrTokenMissing
+	}
+	return simplexdoc.ResolvePath(locator)
+}
+
 // ReadTokenPath resolves the read-token file path from config and environment.
 func ReadTokenPath(locator string) (string, error) {
 	if path := strings.TrimSpace(os.Getenv(readTokenEnv)); path != "" {
@@ -31,6 +45,15 @@ func ReadTokenPath(locator string) (string, error) {
 		return "", ErrTokenMissing
 	}
 	return simplexdoc.ResolvePath(locator)
+}
+
+// LoadSignalTokenHash resolves the signal token locator and loads its hash.
+func LoadSignalTokenHash(locator string) ([32]byte, error) {
+	path, err := SignalTokenPath(locator)
+	if err != nil {
+		return [32]byte{}, err
+	}
+	return LoadReadTokenHash(path)
 }
 
 // LoadReadTokenHash reads the token file and returns the SHA-256 of its content.

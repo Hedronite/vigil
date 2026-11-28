@@ -268,7 +268,7 @@ read, an empty token, a wildcard `listen`, a non-loopback `listen` without
 `--allow-nonloopback`, or a bind failure exits **5** before any route opens,
 with one `vigil.error/v0` line on stderr and nothing on stdout.
 
-Routes shipped in V3 G2:
+Routes on `vigil serve`:
 
 | Route | Method | Auth |
 | --- | --- | --- |
@@ -276,15 +276,18 @@ Routes shipped in V3 G2:
 | `/v0/summary` | GET | read token (`Authorization: Bearer`) |
 | `/v0/hosts`, `/v0/hosts/{id}` | GET | read token |
 | `/v0/sources` | GET | read token (the authority rows of `vigil.summary/v0`, not a live backend probe) |
+| `/v0/signals` | GET, POST | read token for GET; signal token for POST |
 
 `GET /v0/summary` returns the same bytes as `vigil simplex summary --json` for
 the same config, overlay check, and clock. `GET /v0/hosts` returns the
 `hosts[]` slice from that summary; `GET /v0/hosts/{id}` returns one host or
 404; `GET /v0/sources` returns the summary `sources[]` slice only.
 
-Signals and testimony routes arrive in later V3 gates (`/v0/signals`,
-`POST /v0/testimony/{source}`): until then they answer 404 or 405. The read
-token is required on every `/v0/*` route on any bind. Missing and wrong
+`GET /v0/signals` returns the live in-memory signals (read token).
+`POST /v0/signals` accepts a `vigil.signal/v0` body up to 4 KiB (signal token
+only; the read token on POST yields the same 401 as a missing credential).
+`POST /v0/testimony/{source}` arrives in G4 (404 or 405 until then). The read
+token is required on every other `/v0/*` route on any bind. Missing and wrong
 credentials get byte-identical 401 bodies with no `WWW-Authenticate` header:
 
 ```json
@@ -292,16 +295,11 @@ credentials get byte-identical 401 bodies with no `WWW-Authenticate` header:
 ```
 
 Every other non-200 is a `vigil.error/v0` document (`not_found`,
-`method_not_allowed`, `internal`). Unknown paths are 404; the wrong method on
-a known path is 405. JSON only.
+`method_not_allowed`, `body_cap`, `invalid_signal`, `rate_limited`,
+`internal`). Unknown paths are 404; the wrong method on a known path is 405.
+JSON only.
 
 SIGINT and SIGTERM stop the listener gracefully; the command exits **0**.
-
-Planned routes (not yet in G2):
-
-| Route | Method | Auth |
-| --- | --- | --- |
-| `/v0/signals` | GET, POST | read token for GET; write token for POST |
 
 A wildcard `listen` is rejected in every spelling. A non-loopback bind needs
 `--allow-nonloopback` and one explicit address in the config. Quote a
