@@ -48,50 +48,68 @@ func postSignal(opts Options) http.HandlerFunc {
 			writeAPI(w, http.StatusInternalServerError, "internal")
 			return
 		}
-		addr, err := signals.RemoteAddr(r)
-		if err != nil {
-			writeAPI(w, http.StatusBadRequest, "invalid_signal")
+		if !postRateOK(w, r, opts) {
 			return
 		}
-		now := opts.now()
-		if !opts.Limiter.Allow(addr, now.Unix()) {
-			writeAPI(w, http.StatusTooManyRequests, "rate_limited")
+		body, ok := readPostBody(w, r)
+		if !ok {
 			return
 		}
-		lim := http.MaxBytesReader(w, r.Body, signals.MaxBody+1)
-		body, err := io.ReadAll(lim)
-		if err != nil {
-			var maxErr *http.MaxBytesError
-			if errors.As(err, &maxErr) {
-				writeAPI(w, http.StatusRequestEntityTooLarge, "body_cap")
-				return
-			}
-			writeAPI(w, http.StatusBadRequest, "invalid_signal")
-			return
-		}
-		if len(body) > signals.MaxBody {
-			writeAPI(w, http.StatusRequestEntityTooLarge, "body_cap")
-			return
-		}
-		fields, err := signals.DecodePost(body)
-		if err != nil {
-			writeAPI(w, http.StatusBadRequest, "invalid_signal")
-			return
-		}
-		doc, err := opts.Signals.Accept(fields, now)
-		if err != nil {
-			writeAPI(w, http.StatusInternalServerError, "internal")
-			return
-		}
-		b, err := json.Marshal(doc)
-		if err != nil {
-			writeAPI(w, http.StatusInternalServerError, "internal")
-			return
-		}
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusCreated)
-		writeBody(w, append(b, '\n'))
+		writeAccepted(w, opts, body)
 	}
+}
+
+func postRateOK(w http.ResponseWriter, r *http.Request, opts Options) bool {
+	addr, err := signals.RemoteAddr(r)
+	if err != nil {
+		writeAPI(w, http.StatusBadRequest, "invalid_signal")
+		return false
+	}
+	if !opts.Limiter.Allow(addr, opts.now().Unix()) {
+		writeAPI(w, http.StatusTooManyRequests, "rate_limited")
+		return false
+	}
+	return true
+}
+
+func readPostBody(w http.ResponseWriter, r *http.Request) ([]byte, bool) {
+	lim := http.MaxBytesReader(w, r.Body, signals.MaxBody+1)
+	body, err := io.ReadAll(lim)
+	if err != nil {
+		var maxErr *http.MaxBytesError
+		if errors.As(err, &maxErr) {
+			writeAPI(w, http.StatusRequestEntityTooLarge, "body_cap")
+			return nil, false
+		}
+		writeAPI(w, http.StatusBadRequest, "invalid_signal")
+		return nil, false
+	}
+	if len(body) > signals.MaxBody {
+		writeAPI(w, http.StatusRequestEntityTooLarge, "body_cap")
+		return nil, false
+	}
+	return body, true
+}
+
+func writeAccepted(w http.ResponseWriter, opts Options, body []byte) {
+	fields, err := signals.DecodePost(body)
+	if err != nil {
+		writeAPI(w, http.StatusBadRequest, "invalid_signal")
+		return
+	}
+	doc, err := opts.Signals.Accept(fields, opts.now())
+	if err != nil {
+		writeAPI(w, http.StatusInternalServerError, "internal")
+		return
+	}
+	b, err := json.Marshal(doc)
+	if err != nil {
+		writeAPI(w, http.StatusInternalServerError, "internal")
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	writeBody(w, append(b, '\n'))
 }
 
 func pruneSignals(ctx context.Context, store *signals.Store, now func() time.Time) {

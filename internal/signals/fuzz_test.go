@@ -8,6 +8,8 @@ func FuzzSignalBody(f *testing.F) {
 		if len(body) > MaxBody {
 			return
 		}
-		_, _ = DecodePost(body)
+		if _, err := DecodePost(body); err != nil {
+			return
+		}
 	})
 }

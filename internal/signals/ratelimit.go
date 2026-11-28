@@ -65,14 +65,18 @@ func (l *Limiter) claim() int {
 			return i
 		}
 	}
-	// Evict the stalest slot (lowest sec).
+	oldest := l.stalestPeer()
+	l.slots[oldest].addr = netip.Addr{}
+	return oldest
+}
+
+func (l *Limiter) stalestPeer() int {
 	oldest := 0
 	for i := 1; i < maxPeers; i++ {
 		if l.slots[i].sec < l.slots[oldest].sec {
 			oldest = i
 		}
 	}
-	l.slots[oldest].addr = netip.Addr{}
 	return oldest
 }
 

@@ -8,7 +8,7 @@ const (
 	// MaxNoteBytes is the note size limit (#6), measured in bytes.
 	MaxNoteBytes = 280
 	// Capacity is the fixed ring size.
-	Capacity = 256
+	Capacity   = 256
 	defaultTTL = 5 * time.Minute
 	minTTL     = 60 * time.Second
 	maxTTL     = time.Hour

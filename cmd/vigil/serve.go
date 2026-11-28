@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	"github.com/Hedronite/vigil/internal/exitcode"
@@ -21,39 +20,20 @@ func runServe(ctx context.Context, inv Invocation, allowNonLoopback bool) error 
 			return err
 		}
 	}
-	if cfg.Tokens == nil || cfg.Tokens.ReadFile == "" {
-		return exitcode.Newf(exitcode.Startup, "missing_read_token", "the read token file is not configured")
-	}
-	tokenPath, err := server.ReadTokenPath(cfg.Tokens.ReadFile)
+	readHash, err := loadReadTokenHash(cfg)
 	if err != nil {
-		return readTokenStartup(err)
+		return err
 	}
-	readHash, err := server.LoadReadTokenHash(tokenPath)
+	sigHash, err := loadSignalTokenHash(cfg)
 	if err != nil {
-		return readTokenStartup(err)
-	}
-	if cfg.Tokens == nil || cfg.Tokens.SignalFile == "" {
-		return exitcode.Newf(exitcode.Startup, "missing_signal_token", "the signal token file is not configured")
-	}
-	sigPath, err := server.SignalTokenPath(cfg.Tokens.SignalFile)
-	if err != nil {
-		return signalTokenStartup(err)
-	}
-	sigHash, err := server.LoadReadTokenHash(sigPath)
-	if err != nil {
-		return signalTokenStartup(err)
+		return err
 	}
 	if err := server.CheckBind(cfg.Listen, allowNonLoopback); err != nil {
 		return exitcode.Newf(exitcode.Startup, "non_loopback_listen", err.Error())
 	}
 	st := server.NewState()
 	started := time.Now().UTC()
-	clock := func() time.Time {
-		if !inv.Now.IsZero() {
-			return inv.Now.UTC()
-		}
-		return time.Now().UTC()
-	}
+	clock := serveClock(inv)
 	build := func(callCtx context.Context, at time.Time) (*summary.Document, error) {
 		t := at.UTC()
 		if !inv.Now.IsZero() {
@@ -72,16 +52,11 @@ func runServe(ctx context.Context, inv Invocation, allowNonLoopback bool) error 
 	return nil
 }
 
-func readTokenStartup(err error) error {
-	if errors.Is(err, server.ErrTokenMissing) {
-		return exitcode.Newf(exitcode.Startup, "missing_read_token", "the read token file is not configured")
+func serveClock(inv Invocation) func() time.Time {
+	return func() time.Time {
+		if !inv.Now.IsZero() {
+			return inv.Now.UTC()
+		}
+		return time.Now().UTC()
 	}
-	return exitcode.Newf(exitcode.Startup, "token_unusable", "the read token file cannot be used")
-}
-
-func signalTokenStartup(err error) error {
-	if errors.Is(err, server.ErrTokenMissing) {
-		return exitcode.Newf(exitcode.Startup, "missing_signal_token", "the signal token file is not configured")
-	}
-	return exitcode.Newf(exitcode.Startup, "token_unusable", "the signal token file cannot be used")
 }
