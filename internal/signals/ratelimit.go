@@ -59,11 +59,22 @@ func (l *Limiter) find(addr netip.Addr) int {
 }
 
 func (l *Limiter) claim() int {
+	if i := l.firstFree(); i >= 0 {
+		return i
+	}
+	return l.evictOldest()
+}
+
+func (l *Limiter) firstFree() int {
 	for i := range l.slots {
 		if !l.slots[i].addr.IsValid() {
 			return i
 		}
 	}
+	return -1
+}
+
+func (l *Limiter) evictOldest() int {
 	oldest := 0
 	for i := 1; i < maxPeers; i++ {
 		if l.slots[i].sec < l.slots[oldest].sec {

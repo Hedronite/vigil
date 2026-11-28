@@ -47,6 +47,15 @@ func ReadTokenPath(locator string) (string, error) {
 	return simplexdoc.ResolvePath(locator)
 }
 
+// LoadSignalTokenHash resolves the signal token locator and loads its hash.
+func LoadSignalTokenHash(locator string) ([32]byte, error) {
+	path, err := SignalTokenPath(locator)
+	if err != nil {
+		return [32]byte{}, err
+	}
+	return LoadReadTokenHash(path)
+}
+
 // LoadReadTokenHash reads the token file and returns the SHA-256 of its content.
 func LoadReadTokenHash(path string) ([32]byte, error) {
 	var zero [32]byte

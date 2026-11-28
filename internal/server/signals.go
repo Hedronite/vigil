@@ -112,6 +112,13 @@ func writeAccepted(w http.ResponseWriter, opts Options, body []byte) {
 	writeBody(w, append(b, '\n'))
 }
 
+func startSignalPrune(ctx context.Context, opts Options) {
+	if opts.Signals == nil {
+		return
+	}
+	go pruneSignals(ctx, opts.Signals, opts.now)
+}
+
 func pruneSignals(ctx context.Context, store *signals.Store, now func() time.Time) {
 	if store == nil {
 		return

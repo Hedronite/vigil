@@ -112,9 +112,11 @@ func (s *Store) dropExpired(now time.Time) {
 	}
 }
 
+var randomReader = rand.Read
+
 func newID() (string, error) {
 	var raw [16]byte
-	if _, err := rand.Read(raw[:]); err != nil {
+	if _, err := randomReader(raw[:]); err != nil {
 		return "", err
 	}
 	return hex.EncodeToString(raw[:]), nil

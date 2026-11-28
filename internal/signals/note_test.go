@@ -6,6 +6,9 @@ import (
 )
 
 func TestNoteByteLimits(t *testing.T) {
+	if !NoteOK(" ") {
+		t.Fatal("space should be allowed")
+	}
 	if !NoteOK(strings.Repeat("a", 280)) {
 		t.Fatal("280 ASCII should be accepted")
 	}
@@ -29,6 +32,12 @@ func TestNoteByteLimits(t *testing.T) {
 }
 
 func TestNoteRefusals(t *testing.T) {
+	if NoteOK(string(rune(0x1f))) {
+		t.Fatal("C0 control below 0x20 should be refused")
+	}
+	if NoteOK(string(rune(0x9f))) {
+		t.Fatal("C1 high bound should be refused")
+	}
 	bad := []string{
 		"a\u0000b", "a\u007fb", "a\u0080b", "a\u2028b", "a\u2029b",
 	}

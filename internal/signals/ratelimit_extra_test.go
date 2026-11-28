@@ -20,3 +20,13 @@ func TestParseHostAddrInvalid(t *testing.T) {
 		t.Fatal("expected parse error")
 	}
 }
+
+func TestParseHostAddrOK(t *testing.T) {
+	addr, err := ParseHostAddr("192.0.2.1:1234")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if addr.String() != "192.0.2.1" {
+		t.Fatalf("addr = %s", addr)
+	}
+}

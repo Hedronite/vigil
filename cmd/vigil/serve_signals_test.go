@@ -70,6 +70,81 @@ tokens:
 	}
 }
 
+func TestServeSignalTokenBadLocator(t *testing.T) {
+	publish(t, vendoredDoc(t, "green"), generated)
+	readPath := writeText(t, "read.token", "r")
+	t.Setenv("VIGIL_READ_TOKEN_FILE", readPath)
+	t.Setenv("VIGIL_SIGNAL_TOKEN_FILE", "")
+	cfg := `apiVersion: vigil.config/v0
+listen: "127.0.0.1:10082"
+authorities:
+  - id: simplex
+    path_ref: env:VIGIL_TEST_SIMPLEX
+tokens:
+  read_file: env:VIGIL_READ_TOKEN_FILE
+  signal_file: env:VIGIL_NO_SUCH_SIGNAL_PATH
+`
+	path := writeText(t, "config.yaml", cfg)
+	code, _, errs := call(t, liveHandlers(), "serve", "--config", path)
+	if code != exitcode.Startup || !strings.Contains(errs, "token_unusable") {
+		t.Fatalf("bad signal locator: exit=%d stderr=%q", code, errs)
+	}
+}
+
+func TestServeSignalTokenMissingFile(t *testing.T) {
+	publish(t, vendoredDoc(t, "green"), generated)
+	dir := t.TempDir()
+	readPath := filepath.Join(dir, "read.token")
+	t.Setenv("VIGIL_READ_TOKEN_FILE", readPath)
+	if err := os.WriteFile(readPath, []byte("r"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("VIGIL_SIGNAL_TOKEN_FILE", filepath.Join(dir, "absent.token"))
+	cfg := `apiVersion: vigil.config/v0
+listen: "127.0.0.1:10082"
+authorities:
+  - id: simplex
+    path_ref: env:VIGIL_TEST_SIMPLEX
+tokens:
+  read_file: env:VIGIL_READ_TOKEN_FILE
+  signal_file: env:VIGIL_SIGNAL_TOKEN_FILE
+`
+	path := writeText(t, "config.yaml", cfg)
+	code, _, errs := call(t, liveHandlers(), "serve", "--config", path)
+	if code != exitcode.Startup || !strings.Contains(errs, "token_unusable") {
+		t.Fatalf("missing signal file: exit=%d stderr=%q", code, errs)
+	}
+}
+
+func TestServeSignalTokenEmpty(t *testing.T) {
+	publish(t, vendoredDoc(t, "green"), generated)
+	dir := t.TempDir()
+	readPath := filepath.Join(dir, "read.token")
+	sigPath := filepath.Join(dir, "signal.token")
+	if err := os.WriteFile(readPath, []byte("r"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(sigPath, []byte("  \n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("VIGIL_READ_TOKEN_FILE", readPath)
+	t.Setenv("VIGIL_SIGNAL_TOKEN_FILE", sigPath)
+	cfg := `apiVersion: vigil.config/v0
+listen: "127.0.0.1:10082"
+authorities:
+  - id: simplex
+    path_ref: env:VIGIL_TEST_SIMPLEX
+tokens:
+  read_file: env:VIGIL_READ_TOKEN_FILE
+  signal_file: env:VIGIL_SIGNAL_TOKEN_FILE
+`
+	path := writeText(t, "config.yaml", cfg)
+	code, _, errs := call(t, liveHandlers(), "serve", "--config", path)
+	if code != exitcode.Startup || !strings.Contains(errs, "token_unusable") {
+		t.Fatalf("empty signal token: exit=%d stderr=%q", code, errs)
+	}
+}
+
 func TestServeMissingSignalTokenConfig(t *testing.T) {
 	publish(t, vendoredDoc(t, "green"), generated)
 	readPath := writeText(t, "read.token", "r")

@@ -2,6 +2,7 @@ package server
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -31,6 +32,97 @@ func TestPostSignalBodyCap(t *testing.T) {
 	if !strings.Contains(rec.Body.String(), "body_cap") {
 		t.Fatalf("body %q", rec.Body.String())
 	}
+}
+
+func TestPostSignalNilDeps(t *testing.T) {
+	now := time.Date(2026, 11, 13, 18, 0, 0, 0, time.UTC)
+	body := []byte(`{"apiVersion":"vigil.signal/v0","source":"d","kind":"k","severity":"info"}`)
+	req := httptest.NewRequest(http.MethodPost, "/v0/signals", bytes.NewReader(body))
+	req.RemoteAddr = "127.0.0.1:1"
+	req.Header.Set("Authorization", "Bearer sig")
+	rec := httptest.NewRecorder()
+	signalRoutes(Options{
+		SignalToken: tokenHash(t, "sig"), Now: func() time.Time { return now },
+	}).ServeHTTP(rec, req)
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("nil deps = %d", rec.Code)
+	}
+	store := signals.NewStore(func() time.Time { return now })
+	req2 := httptest.NewRequest(http.MethodPost, "/v0/signals", bytes.NewReader(body))
+	req2.RemoteAddr = "127.0.0.1:1"
+	req2.Header.Set("Authorization", "Bearer sig")
+	rec2 := httptest.NewRecorder()
+	signalRoutes(Options{
+		SignalToken: tokenHash(t, "sig"), Signals: store, Now: func() time.Time { return now },
+	}).ServeHTTP(rec2, req2)
+	if rec2.Code != http.StatusInternalServerError {
+		t.Fatalf("nil limiter = %d", rec2.Code)
+	}
+}
+
+func TestPostSignalBodyLengthBoundary(t *testing.T) {
+	now := time.Date(2026, 11, 13, 18, 0, 0, 0, time.UTC)
+	h := signalRoutes(Options{
+		SignalToken: tokenHash(t, "sig"), Signals: signals.NewStore(func() time.Time { return now }),
+		Limiter: &signals.Limiter{}, Now: func() time.Time { return now },
+	})
+	for _, tc := range []struct {
+		size     int
+		code     int
+		codeName string
+	}{
+		{signals.MaxBody + 1, http.StatusRequestEntityTooLarge, "body_cap"},
+		{signals.MaxBody, http.StatusBadRequest, "invalid_signal"},
+	} {
+		body := bytes.Repeat([]byte("x"), tc.size)
+		req := httptest.NewRequest(http.MethodPost, "/v0/signals", bytes.NewReader(body))
+		req.RemoteAddr = "127.0.0.1:1"
+		req.Header.Set("Authorization", "Bearer sig")
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		if rec.Code != tc.code || !strings.Contains(rec.Body.String(), tc.codeName) {
+			t.Fatalf("size %d: status=%d body=%q", tc.size, rec.Code, rec.Body.String())
+		}
+	}
+}
+
+func TestPostSignalBadRemoteAddr(t *testing.T) {
+	now := time.Now().UTC()
+	h := signalRoutes(Options{
+		SignalToken: tokenHash(t, "sig"), Signals: signals.NewStore(func() time.Time { return now }),
+		Limiter: &signals.Limiter{}, Now: func() time.Time { return now },
+	})
+	req := httptest.NewRequest(http.MethodPost, "/v0/signals", strings.NewReader(`{"apiVersion":"vigil.signal/v0","source":"d","kind":"k","severity":"info"}`))
+	req.RemoteAddr = "not-host-port"
+	req.Header.Set("Authorization", "Bearer sig")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "invalid_signal") {
+		t.Fatalf("status=%d body=%q", rec.Code, rec.Body.String())
+	}
+}
+
+func TestPruneSignalsExitsOnCancel(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	now := func() time.Time { return time.Now().UTC() }
+	store := signals.NewStore(now)
+	done := make(chan struct{})
+	go func() {
+		pruneSignals(ctx, store, now)
+		close(done)
+	}()
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("prune did not exit")
+	}
+}
+
+func TestPruneSignalsNilStore(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	pruneSignals(ctx, nil, time.Now)
 }
 
 func TestPostSignalRateLimited(t *testing.T) {
