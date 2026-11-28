@@ -48,7 +48,7 @@ func tokenHash(t *testing.T, secret string) [32]byte {
 func startServer(t *testing.T, addr string, read, signal [32]byte, build DocumentBuilder) (context.CancelFunc, string) {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
-	store := signals.NewStore(nil)
+	store := signals.NewStore()
 	errCh := make(chan error, 1)
 	go func() {
 		errCh <- Run(ctx, Options{
@@ -217,7 +217,7 @@ func TestRunReturnsServeError(t *testing.T) {
 		t.Fatal(err)
 	}
 	ctx := context.Background()
-	store := signals.NewStore(nil)
+	store := signals.NewStore()
 	err = Run(ctx, Options{
 		Listener: ln, ReadToken: tokenHash(t, "s"), SignalToken: tokenHash(t, "s"),
 		Build: staticDoc(t), Signals: store, Limiter: &signals.Limiter{},
@@ -231,7 +231,7 @@ func TestShutdown(t *testing.T) {
 	addr := loopbackAddr(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
-	store := signals.NewStore(nil)
+	store := signals.NewStore()
 	go func() {
 		done <- Run(ctx, Options{
 			Listen: addr, ReadToken: tokenHash(t, "s"), SignalToken: tokenHash(t, "s"),

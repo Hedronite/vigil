@@ -15,7 +15,7 @@ import (
 
 func TestPostSignalBodyCap(t *testing.T) {
 	now := time.Date(2026, 11, 13, 18, 0, 0, 0, time.UTC)
-	store := signals.NewStore(func() time.Time { return now })
+	store := signals.NewStore()
 	sig := tokenHash(t, "sig")
 	h := signalRoutes(Options{
 		SignalToken: sig, Signals: store, Limiter: &signals.Limiter{}, Now: func() time.Time { return now },
@@ -47,7 +47,7 @@ func TestPostSignalNilDeps(t *testing.T) {
 	if rec.Code != http.StatusInternalServerError {
 		t.Fatalf("nil deps = %d", rec.Code)
 	}
-	store := signals.NewStore(func() time.Time { return now })
+	store := signals.NewStore()
 	req2 := httptest.NewRequest(http.MethodPost, "/v0/signals", bytes.NewReader(body))
 	req2.RemoteAddr = "127.0.0.1:1"
 	req2.Header.Set("Authorization", "Bearer sig")
@@ -63,7 +63,7 @@ func TestPostSignalNilDeps(t *testing.T) {
 func TestPostSignalBodyLengthBoundary(t *testing.T) {
 	now := time.Date(2026, 11, 13, 18, 0, 0, 0, time.UTC)
 	h := signalRoutes(Options{
-		SignalToken: tokenHash(t, "sig"), Signals: signals.NewStore(func() time.Time { return now }),
+		SignalToken: tokenHash(t, "sig"), Signals: signals.NewStore(),
 		Limiter: &signals.Limiter{}, Now: func() time.Time { return now },
 	})
 	for _, tc := range []struct {
@@ -89,7 +89,7 @@ func TestPostSignalBodyLengthBoundary(t *testing.T) {
 func TestPostSignalBadRemoteAddr(t *testing.T) {
 	now := time.Now().UTC()
 	h := signalRoutes(Options{
-		SignalToken: tokenHash(t, "sig"), Signals: signals.NewStore(func() time.Time { return now }),
+		SignalToken: tokenHash(t, "sig"), Signals: signals.NewStore(),
 		Limiter: &signals.Limiter{}, Now: func() time.Time { return now },
 	})
 	req := httptest.NewRequest(http.MethodPost, "/v0/signals", strings.NewReader(`{"apiVersion":"vigil.signal/v0","source":"d","kind":"k","severity":"info"}`))
@@ -105,7 +105,7 @@ func TestPostSignalBadRemoteAddr(t *testing.T) {
 func TestPruneSignalsExitsOnCancel(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	now := func() time.Time { return time.Now().UTC() }
-	store := signals.NewStore(now)
+	store := signals.NewStore()
 	done := make(chan struct{})
 	go func() {
 		pruneSignals(ctx, store, now)
@@ -127,7 +127,7 @@ func TestPruneSignalsNilStore(t *testing.T) {
 
 func TestPostSignalRateLimited(t *testing.T) {
 	now := time.Date(2026, 11, 13, 18, 0, 0, 0, time.UTC)
-	store := signals.NewStore(func() time.Time { return now })
+	store := signals.NewStore()
 	lim := &signals.Limiter{}
 	read := tokenHash(t, "read")
 	sig := tokenHash(t, "sig")

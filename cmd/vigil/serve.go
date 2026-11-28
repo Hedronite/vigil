@@ -44,7 +44,7 @@ func runServe(ctx context.Context, inv Invocation, allowNonLoopback bool) error 
 		}
 		return serveSummary(callCtx, cfg, st, started, t)
 	}
-	ring := signals.NewStore(clock)
+	ring := signals.NewStore()
 	if err := server.Run(ctx, server.Options{
 		Listen: cfg.Listen, ReadToken: readHash, SignalToken: sigHash,
 		AllowNonLoopback: allowNonLoopback, Build: build,

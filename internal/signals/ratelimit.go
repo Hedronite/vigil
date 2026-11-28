@@ -64,13 +64,21 @@ func (l *Limiter) claim() int {
 			return i
 		}
 	}
-	oldest := 0
-	for i := range l.slots {
-		if i > 0 && l.slots[i].sec < l.slots[oldest].sec {
+	i := oldestPeer(l.slots)
+	l.slots[i].addr = netip.Addr{}
+	return i
+}
+
+func oldestPeer(slots [maxPeers]peerSlot) int {
+	oldest := -1
+	for i := range slots {
+		if !slots[i].addr.IsValid() {
+			continue
+		}
+		if oldest < 0 || slots[i].sec < slots[oldest].sec {
 			oldest = i
 		}
 	}
-	l.slots[oldest].addr = netip.Addr{}
 	return oldest
 }
 

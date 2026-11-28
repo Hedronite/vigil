@@ -164,6 +164,27 @@ tokens:
 	}
 }
 
+func TestServeSignalPostAccepted(t *testing.T) {
+	cfg, _, sigTok := serveFixture(t)
+	addr := listenFromConfig(t, cfg)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go func() {
+		_ = run(ctx, []string{"serve", "--config", cfg, "--now", pinned}, io.Discard, io.Discard, liveHandlers())
+	}()
+	waitListen(t, addr)
+	body := []byte(`{"apiVersion":"vigil.signal/v0","source":"deploy","kind":"roll","severity":"info"}`)
+	code, out := postSignal(t, addr, sigTok, body)
+	if code != http.StatusCreated {
+		t.Fatalf("post = %d %s", code, out)
+	}
+	bad, _ := postSignal(t, addr, "not-the-signal-token", body)
+	if bad != http.StatusUnauthorized {
+		t.Fatalf("wrong token post = %d", bad)
+	}
+	cancel()
+}
+
 func TestServeSignalFloodSummaryStable(t *testing.T) {
 	cfg, readTok, sigTok := serveFixture(t)
 	addr := listenFromConfig(t, cfg)

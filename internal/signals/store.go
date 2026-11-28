@@ -28,19 +28,14 @@ type slot struct {
 
 // Store is a fixed 256-entry ring, never persisted.
 type Store struct {
-	mu    sync.RWMutex
-	ring  [Capacity]slot
-	next  int
-	clock func() time.Time
+	mu   sync.RWMutex
+	ring [Capacity]slot
+	next int
 }
 
-// NewStore returns an empty ring using clock for timestamps.
-func NewStore(clock func() time.Time) *Store {
-	now := clock
-	if now == nil {
-		now = func() time.Time { return time.Now().UTC() }
-	}
-	return &Store{clock: now}
+// NewStore returns an empty ring.
+func NewStore() *Store {
+	return &Store{}
 }
 
 // Accept stores a new signal and returns the assigned document.

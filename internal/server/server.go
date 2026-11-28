@@ -71,7 +71,9 @@ func Run(ctx context.Context, opts Options) error {
 		IdleTimeout:       idleTimeout,
 		MaxHeaderBytes:    maxHeader,
 	}
-	startSignalPrune(ctx, opts)
+	if opts.Signals != nil {
+		go pruneSignals(ctx, opts.Signals, opts.now)
+	}
 	errCh := make(chan error, 1)
 	go func() {
 		errCh <- srv.Serve(ln)
