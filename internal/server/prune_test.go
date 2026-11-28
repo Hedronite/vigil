@@ -3,7 +3,7 @@ package server
 import (
 	"context"
 	"net"
-	"sync/atomic"
+	"sync"
 	"testing"
 	"time"
 
@@ -17,16 +17,12 @@ func TestPruneSignalsNilStoreExitsCleanly(t *testing.T) {
 }
 
 func TestPruneSignalsNilStoreTickNoPanic(t *testing.T) {
-	old := signalPruneInterval
-	signalPruneInterval = 15 * time.Millisecond
-	defer func() { signalPruneInterval = old }()
-
 	panicked := make(chan any, 1)
 	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
 	defer cancel()
 	go func() {
 		defer func() { panicked <- recover() }()
-		pruneSignals(ctx, nil, func() time.Time { return time.Now().UTC() })
+		pruneSignalsEvery(ctx, nil, func() time.Time { return time.Now().UTC() }, 15*time.Millisecond)
 	}()
 	<-ctx.Done()
 	time.Sleep(30 * time.Millisecond)
@@ -36,14 +32,14 @@ func TestPruneSignalsNilStoreTickNoPanic(t *testing.T) {
 }
 
 func TestPruneSignalsDropsExpiredOnTick(t *testing.T) {
-	old := signalPruneInterval
-	signalPruneInterval = 15 * time.Millisecond
-	defer func() { signalPruneInterval = old }()
-
 	frozen := time.Date(2026, 11, 13, 18, 0, 0, 0, time.UTC)
-	var now atomic.Value
-	now.Store(frozen)
-	nowFn := func() time.Time { return now.Load().(time.Time) }
+	var nowMu sync.Mutex
+	cur := frozen
+	nowFn := func() time.Time {
+		nowMu.Lock()
+		defer nowMu.Unlock()
+		return cur
+	}
 
 	store := signals.NewStore()
 	if _, err := store.Accept(signals.PostFields{
@@ -52,12 +48,21 @@ func TestPruneSignalsDropsExpiredOnTick(t *testing.T) {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	go pruneSignals(ctx, store, nowFn)
-	now.Store(frozen.Add(61 * time.Second))
-	deadline := time.Now().Add(500 * time.Millisecond)
+	done := make(chan struct{})
+	go func() {
+		pruneSignalsEvery(ctx, store, nowFn, 15*time.Millisecond)
+		close(done)
+	}()
+	t.Cleanup(func() {
+		cancel()
+		<-done
+	})
+	nowMu.Lock()
+	cur = frozen.Add(61 * time.Second)
+	nowMu.Unlock()
+	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
-		if store.LenLive(nowFn()) == 0 {
+		if store.LiveSlotCount() == 0 {
 			return
 		}
 		time.Sleep(10 * time.Millisecond)
@@ -65,15 +70,39 @@ func TestPruneSignalsDropsExpiredOnTick(t *testing.T) {
 	t.Fatalf("signal still live after prune ticks")
 }
 
-func TestRunStartsPruneWhenSignalsPresent(t *testing.T) {
-	old := signalPruneInterval
-	signalPruneInterval = 15 * time.Millisecond
-	defer func() { signalPruneInterval = old }()
+func TestRunWithoutSignalsStoreStillBinds(t *testing.T) {
+	addr := loopbackAddr(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	go func() {
+		_ = Run(ctx, Options{
+			Listen: addr, ReadToken: tokenHash(t, "r"), SignalToken: tokenHash(t, "s"),
+			Build: staticDoc(t), Limiter: &signals.Limiter{},
+		})
+	}()
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		c, err := net.DialTimeout("tcp", addr, 50*time.Millisecond)
+		if err == nil {
+			if closeErr := c.Close(); closeErr != nil {
+				t.Fatal(closeErr)
+			}
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("listener did not open")
+}
 
+func TestRunPrunesExpiredWhenSignalsPresent(t *testing.T) {
 	frozen := time.Date(2026, 11, 13, 18, 0, 0, 0, time.UTC)
-	var now atomic.Value
-	now.Store(frozen)
-	nowFn := func() time.Time { return now.Load().(time.Time) }
+	var nowMu sync.Mutex
+	cur := frozen
+	nowFn := func() time.Time {
+		nowMu.Lock()
+		defer nowMu.Unlock()
+		return cur
+	}
 
 	store := signals.NewStore()
 	if _, err := store.Accept(signals.PostFields{
@@ -84,26 +113,34 @@ func TestRunStartsPruneWhenSignalsPresent(t *testing.T) {
 
 	addr := loopbackAddr(t)
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	t.Cleanup(cancel)
 	go func() {
 		_ = Run(ctx, Options{
 			Listen: addr, ReadToken: tokenHash(t, "r"), SignalToken: tokenHash(t, "s"),
-			Build: staticDoc(t), Signals: store, Limiter: &signals.Limiter{}, Now: nowFn,
+			Build: staticDoc(t), Signals: store, Limiter: &signals.Limiter{},
+			Now: nowFn, PruneEvery: 15 * time.Millisecond,
 		})
 	}()
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
+	dialDeadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(dialDeadline) {
 		c, err := net.DialTimeout("tcp", addr, 50*time.Millisecond)
 		if err == nil {
-			_ = c.Close()
+			if closeErr := c.Close(); closeErr != nil {
+				t.Fatal(closeErr)
+			}
 			break
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
-	now.Store(frozen.Add(61 * time.Second))
-	waitUntil := time.Now().Add(500 * time.Millisecond)
+	nowMu.Lock()
+	cur = frozen.Add(61 * time.Second)
+	nowMu.Unlock()
+	if store.LiveSlotCount() == 0 {
+		t.Fatal("expired before prune tick")
+	}
+	waitUntil := time.Now().Add(2 * time.Second)
 	for time.Now().Before(waitUntil) {
-		if store.LenLive(nowFn()) == 0 {
+		if store.LiveSlotCount() == 0 {
 			return
 		}
 		time.Sleep(10 * time.Millisecond)

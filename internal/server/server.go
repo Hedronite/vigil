@@ -37,6 +37,7 @@ type Options struct {
 	Limiter          *signals.Limiter
 	Now              func() time.Time
 	Listener         net.Listener // tests only
+	PruneEvery       time.Duration // tests only; zero uses signalPruneInterval
 }
 
 func (o Options) now() time.Time {
@@ -76,7 +77,11 @@ func Run(ctx context.Context, opts Options) error {
 		MaxHeaderBytes:    maxHeader,
 	}
 	if opts.Signals != nil {
-		go pruneSignals(ctx, opts.Signals, opts.now)
+		every := opts.PruneEvery
+		if every == 0 {
+			every = signalPruneInterval
+		}
+		go pruneSignalsEvery(ctx, opts.Signals, opts.now, every)
 	}
 	errCh := make(chan error, 1)
 	go func() {

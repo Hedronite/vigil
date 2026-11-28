@@ -50,6 +50,29 @@ func TestLoadServeTokenHashesRejectsUnusableSignal(t *testing.T) {
 	}
 }
 
+func TestLoadServeTokenHashesRequiresNonemptySignalFile(t *testing.T) {
+	dir := t.TempDir()
+	readPath := filepath.Join(dir, "read.token")
+	if err := os.WriteFile(readPath, []byte("r"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("VIGIL_READ_TOKEN_FILE", readPath)
+	cfg := &config.Config{Tokens: &config.Tokens{
+		ReadFile: "env:VIGIL_READ_TOKEN_FILE", SignalFile: "",
+	}}
+	read, sig, err := loadServeTokenHashes(cfg)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	var zero [32]byte
+	if read == zero || sig != zero {
+		t.Fatalf("read=%x sig=%x", read, sig)
+	}
+	if ee, ok := exitcode.As(err); !ok || ee.Code != "missing_signal_token" {
+		t.Fatalf("err = %v", err)
+	}
+}
+
 func TestLoadServeTokenHashesLoadsGoodTokens(t *testing.T) {
 	dir := t.TempDir()
 	readPath := filepath.Join(dir, "read.token")

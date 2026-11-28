@@ -28,7 +28,10 @@ func loadServeTokenHashes(cfg *config.Config) ([32]byte, [32]byte, error) {
 	if err != nil {
 		return [32]byte{}, [32]byte{}, err
 	}
-	if cfg.Tokens == nil || cfg.Tokens.SignalFile == "" {
+	if cfg.Tokens == nil {
+		return read, [32]byte{}, exitcode.Newf(exitcode.Startup, "missing_signal_token", "the signal token file is not configured")
+	}
+	if cfg.Tokens.SignalFile == "" {
 		return read, [32]byte{}, exitcode.Newf(exitcode.Startup, "missing_signal_token", "the signal token file is not configured")
 	}
 	sig, err := server.LoadSignalTokenHash(cfg.Tokens.SignalFile)

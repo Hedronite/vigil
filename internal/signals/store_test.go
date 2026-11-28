@@ -32,6 +32,25 @@ func TestAcceptStoresNote(t *testing.T) {
 	}
 }
 
+func TestLiveSlotCountKeepsExpiredUntilPrune(t *testing.T) {
+	now := time.Date(2026, 11, 13, 18, 0, 0, 0, time.UTC)
+	st := NewStore()
+	if _, err := st.Accept(PostFields{Source: "a", Kind: "b", Severity: "info", TTL: 60}, now); err != nil {
+		t.Fatal(err)
+	}
+	later := now.Add(61 * time.Second)
+	if st.LiveSlotCount() != 1 {
+		t.Fatalf("slot count = %d, want 1 before expiry instant", st.LiveSlotCount())
+	}
+	if st.LiveSlotCount() != 1 {
+		t.Fatalf("slot count = %d, want 1 after TTL elapsed", st.LiveSlotCount())
+	}
+	st.Prune(later)
+	if st.LiveSlotCount() != 0 {
+		t.Fatalf("slot count = %d after prune", st.LiveSlotCount())
+	}
+}
+
 func TestExpiryPrune(t *testing.T) {
 	now := time.Date(2026, 11, 13, 18, 0, 0, 0, time.UTC)
 	st := NewStore()

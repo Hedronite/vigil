@@ -79,6 +79,19 @@ func (s *Store) Live(now time.Time) []Document {
 	return out
 }
 
+// LiveSlotCount returns entries still marked live without dropping expired (for tests).
+func (s *Store) LiveSlotCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	n := 0
+	for i := range s.ring {
+		if s.ring[i].live {
+			n++
+		}
+	}
+	return n
+}
+
 // LenLive returns how many unexpired entries are stored.
 func (s *Store) LenLive(now time.Time) int {
 	s.mu.Lock()

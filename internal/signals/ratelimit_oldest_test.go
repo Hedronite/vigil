@@ -32,6 +32,15 @@ func TestOldestPeerIgnoresInvalidWithLowSec(t *testing.T) {
 	}
 }
 
+func TestOldestPeerKeepsIndexZeroWhenSmallest(t *testing.T) {
+	var slots [maxPeers]peerSlot
+	slots[0] = peerSlot{addr: netip.MustParseAddr("192.0.2.1"), sec: 2}
+	slots[1] = peerSlot{addr: netip.MustParseAddr("192.0.2.2"), sec: 5}
+	if got := oldestPeer(slots); got != 0 {
+		t.Fatalf("oldest = %d, want 0", got)
+	}
+}
+
 func TestOldestPeerEqualSecKeepsLowerIndex(t *testing.T) {
 	var slots [maxPeers]peerSlot
 	slots[1] = peerSlot{addr: netip.MustParseAddr("192.0.2.2"), sec: 7}

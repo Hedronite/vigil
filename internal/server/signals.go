@@ -115,10 +115,14 @@ func writeAccepted(w http.ResponseWriter, opts Options, body []byte) {
 }
 
 func pruneSignals(ctx context.Context, store *signals.Store, now func() time.Time) {
+	pruneSignalsEvery(ctx, store, now, signalPruneInterval)
+}
+
+func pruneSignalsEvery(ctx context.Context, store *signals.Store, now func() time.Time, every time.Duration) {
 	if store == nil {
 		return
 	}
-	tick := time.NewTicker(signalPruneInterval)
+	tick := time.NewTicker(every)
 	defer tick.Stop()
 	for {
 		select {
