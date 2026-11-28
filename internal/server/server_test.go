@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Hedronite/vigil/internal/signals"
 	"github.com/Hedronite/vigil/internal/simplexdoc"
 	"github.com/Hedronite/vigil/internal/summary"
 )
@@ -44,12 +45,16 @@ func tokenHash(t *testing.T, secret string) [32]byte {
 	return sha256.Sum256([]byte(secret))
 }
 
-func startServer(t *testing.T, addr string, hash [32]byte, build DocumentBuilder) (context.CancelFunc, string) {
+func startServer(t *testing.T, addr string, read, signal [32]byte, build DocumentBuilder) (context.CancelFunc, string) {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
+	store := signals.NewStore(nil)
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- Run(ctx, Options{Listen: addr, ReadToken: hash, Build: build})
+		errCh <- Run(ctx, Options{
+			Listen: addr, ReadToken: read, SignalToken: signal, Build: build,
+			Signals: store, Limiter: &signals.Limiter{},
+		})
 	}()
 	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
@@ -93,7 +98,7 @@ func get(t *testing.T, url, token string) (int, string) {
 
 func TestHealthzOpen(t *testing.T) {
 	addr := loopbackAddr(t)
-	cancel, _ := startServer(t, addr, tokenHash(t, "s"), staticDoc(t))
+	cancel, _ := startServer(t, addr, tokenHash(t, "s"), tokenHash(t, "s"), staticDoc(t))
 	defer cancel()
 	code, body := get(t, "http://"+addr+"/healthz", "")
 	if code != http.StatusOK || body != healthBody {
@@ -104,7 +109,7 @@ func TestHealthzOpen(t *testing.T) {
 func TestUnauthorizedByteIdentical(t *testing.T) {
 	addr := loopbackAddr(t)
 	secret := "quiet-secret"
-	cancel, _ := startServer(t, addr, tokenHash(t, secret), staticDoc(t))
+	cancel, _ := startServer(t, addr, tokenHash(t, secret), tokenHash(t, "sig"), staticDoc(t))
 	defer cancel()
 	for _, token := range []string{"", "wrong"} {
 		code, body := get(t, "http://"+addr+"/v0/summary", token)
@@ -117,7 +122,7 @@ func TestUnauthorizedByteIdentical(t *testing.T) {
 func TestRoutesAuthAndErrors(t *testing.T) {
 	addr := loopbackAddr(t)
 	secret := "quiet-secret"
-	cancel, _ := startServer(t, addr, tokenHash(t, secret), staticDoc(t))
+	cancel, _ := startServer(t, addr, tokenHash(t, secret), tokenHash(t, "sig"), staticDoc(t))
 	defer cancel()
 	base := "http://" + addr
 	code, _ := get(t, base+"/v0/summary", secret)
@@ -160,8 +165,23 @@ func TestRoutesAuthAndErrors(t *testing.T) {
 		t.Fatalf("POST summary = %d, want 405", resp.StatusCode)
 	}
 	code, body = get(t, base+"/v0/signals", secret)
-	if code != http.StatusNotFound {
-		t.Fatalf("signals = %d %q, want 404", code, body)
+	if code != http.StatusOK || body != "[]\n" {
+		t.Fatalf("signals GET = %d %q, want empty list", code, body)
+	}
+	reqSig, err := http.NewRequest(http.MethodPost, base+"/v0/signals", strings.NewReader(`{"apiVersion":"vigil.signal/v0","source":"deploy","kind":"k","severity":"info"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	reqSig.Header.Set("Authorization", "Bearer "+secret)
+	respSig, err := http.DefaultClient.Do(reqSig)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := respSig.Body.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if respSig.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("POST with read token = %d, want 401", respSig.StatusCode)
 	}
 }
 
@@ -197,7 +217,11 @@ func TestRunReturnsServeError(t *testing.T) {
 		t.Fatal(err)
 	}
 	ctx := context.Background()
-	err = Run(ctx, Options{Listener: ln, ReadToken: tokenHash(t, "s"), Build: staticDoc(t)})
+	store := signals.NewStore(nil)
+	err = Run(ctx, Options{
+		Listener: ln, ReadToken: tokenHash(t, "s"), SignalToken: tokenHash(t, "s"),
+		Build: staticDoc(t), Signals: store, Limiter: &signals.Limiter{},
+	})
 	if err == nil {
 		t.Fatal("expected serve error on a closed listener")
 	}
@@ -207,7 +231,13 @@ func TestShutdown(t *testing.T) {
 	addr := loopbackAddr(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
-	go func() { done <- Run(ctx, Options{Listen: addr, ReadToken: tokenHash(t, "s"), Build: staticDoc(t)}) }()
+	store := signals.NewStore(nil)
+	go func() {
+		done <- Run(ctx, Options{
+			Listen: addr, ReadToken: tokenHash(t, "s"), SignalToken: tokenHash(t, "s"),
+			Build: staticDoc(t), Signals: store, Limiter: &signals.Limiter{},
+		})
+	}()
 	time.Sleep(100 * time.Millisecond)
 	cancel()
 	select {
@@ -231,7 +261,7 @@ func TestZeroBackendDial(t *testing.T) {
 		},
 	}
 	client := &http.Client{Transport: transport}
-	cancel, _ := startServer(t, addr, tokenHash(t, "s"), staticDoc(t))
+	cancel, _ := startServer(t, addr, tokenHash(t, "s"), tokenHash(t, "s"), staticDoc(t))
 	defer cancel()
 	req, err := http.NewRequest(http.MethodGet, "http://"+addr+"/v0/sources", nil)
 	if err != nil {

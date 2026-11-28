@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/Hedronite/vigil/internal/signals"
 	"github.com/Hedronite/vigil/internal/summary"
 )
 
@@ -29,9 +30,20 @@ type DocumentBuilder func(context.Context, time.Time) (*summary.Document, error)
 type Options struct {
 	Listen           string
 	ReadToken        [32]byte
+	SignalToken      [32]byte
 	AllowNonLoopback bool
 	Build            DocumentBuilder
+	Signals          *signals.Store
+	Limiter          *signals.Limiter
+	Now              func() time.Time
 	Listener         net.Listener // tests only
+}
+
+func (o Options) now() time.Time {
+	if o.Now != nil {
+		return o.Now().UTC()
+	}
+	return time.Now().UTC()
 }
 
 // Run listens until ctx ends, then shuts down. A bind failure returns an error.
@@ -58,6 +70,9 @@ func Run(ctx context.Context, opts Options) error {
 		WriteTimeout:      writeTimeout,
 		IdleTimeout:       idleTimeout,
 		MaxHeaderBytes:    maxHeader,
+	}
+	if opts.Signals != nil {
+		go pruneSignals(ctx, opts.Signals, opts.now)
 	}
 	errCh := make(chan error, 1)
 	go func() {
@@ -86,6 +101,7 @@ func routes(opts Options) http.Handler {
 	mux.Handle("/v0/hosts", auth(hostsJSON(opts.Build)))
 	mux.Handle("/v0/hosts/{id}", auth(hostByID(opts.Build)))
 	mux.Handle("/v0/sources", auth(sourcesJSON(opts.Build)))
+	mux.Handle("/v0/signals", signalRoutes(opts))
 	return recoverHTTP(notFound(mux))
 }
 

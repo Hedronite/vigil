@@ -79,7 +79,7 @@ There is no `/v0/query`, no `/v0/queries`, and no route that takes a URL, a sele
 - **Bind.** Default `127.0.0.1:10082`. A non-loopback bind needs `--allow-nonloopback` and one explicit address: an IPv4 literal or a bracketed IPv6 literal, with a port. Wildcard binds are always rejected, in every spelling: an empty host; any host made only of `0`, `.`, `:`, `[` and `]` (`0.0.0.0`, `[::]`, `[0::]`, `[::0]`, and the zero-padded and fully expanded forms); and the IPv4-mapped unspecified address in any spelling (`[::ffff:0.0.0.0]`, `[::ffff:0:0]`, any case). At runtime a wildcard `listen` exits 5 and names the address, wherever it came from: the config file or any flag. The `listen` key in `vigil.config.v0` also rejects the same set, but that is an authoring and CI check (editors, conformance tests), not an exit path: the binary never runs the JSON Schema. Exit 3 stays for malformed or strictly-decoded config errors. In YAML, quote a bracketed IPv6 value (`listen: "[::1]:10082"`): unquoted, the brackets open a flow sequence and the decoder fails before the schema runs. A bind failure exits 5 and names the address. Port 10082 clears the Prometheus exporter allocations and the Simplex metrics port.
 - **Tokens.** The read token (`VIGIL_READ_TOKEN_FILE`) is required on every `/v0/*` route on any bind, so a proxy in front of loopback cannot bypass it. The write token (`VIGIL_SIGNAL_TOKEN_FILE`) is required for `POST /v0/signals`. Facet holds the read token only. Token files must be mode `0600` or tighter; a missing file or a looser mode exits 5 at start. Secrets come from paths or the environment, never from argv.
 - **Comparison.** Tokens are hashed with SHA-256, then compared in constant time. A missing token and a wrong token get byte-identical 401 bodies with no `WWW-Authenticate` header. Callers send `Authorization: Bearer` with the raw token from the file.
-- **G2 surface.** `/healthz` is open. `GET /v0/summary` matches `vigil simplex summary --json` for the same config, overlay validation and clock. `GET /v0/hosts` returns the summary `hosts[]`; `GET /v0/hosts/{id}` returns one host or `not_found`; `GET /v0/sources` returns the summary `sources[]` only and never dials a backend. `/v0/signals` and `/v0/testimony` are not registered until G3 and G4 (404 or 405).
+- **G2 surface.** `/healthz` is open. `GET /v0/summary` matches `vigil simplex summary --json` for the same config, overlay validation and clock. `GET /v0/hosts` returns the summary `hosts[]`; `GET /v0/hosts/{id}` returns one host or `not_found`; `GET /v0/sources` returns the summary `sources[]` only and never dials a backend. `/v0/testimony` is not registered until G4 (404 or 405).
 - **Timeouts.** The listener sets bounded `ReadHeaderTimeout`, `ReadTimeout`, `WriteTimeout`, `IdleTimeout` and `MaxHeaderBytes`. A recovered panic is a 500 `internal` with no stack.
 - **Shutdown.** SIGINT and SIGTERM drain the listener and exit 0.
 - **Transport.** Plain HTTP; the tailnet carries it. No TLS in v0.
@@ -105,12 +105,12 @@ Tests: `internal/promclient` `TestQueryRules` has one case for each rule above (
 
 ## 8. Signals
 
-A `vigil.signal/v0` is ephemeral and arrives only by authenticated POST.
+A `vigil.signal/v0` is ephemeral and arrives only by authenticated `POST /v0/signals` with the signal token. `GET /v0/signals` with the read token returns the live (unexpired) entries as a JSON array; each non-200 is `vigil.error/v0`.
 
-- `severity` is `info` or `notice`, never GREEN, YELLOW or RED, so no reader mistakes a signal for a verdict.
-- The body is at most 4 KiB, decoded strictly. `note` is at most 280 bytes with no control characters. `ttl` is clamped to 60s to 1h, default 5m. `created_at` comes from the server clock.
-- The store is a 256-entry in-memory ring, pruned on read and on a timer, never persisted. Rate limit: 10 per second per remote address; loopback is exempt.
-- Signals never change `overall` or `sources[]`. A flood of them leaves both untouched. Fixture: `signal-present`.
+- `severity` is `info` or `notice`, never GREEN, YELLOW or RED, so no reader mistakes a signal for a verdict. Unknown JSON fields, a client-supplied `id` or `created_at`, or a body over 4 KiB yields `invalid_signal` or `body_cap`.
+- `note` is at most **280 bytes** (not runes), with no C0, DEL, C1 (`U+0080`–`U+009F`), or U+2028/U+2029. `ttl` in the request may be absent (default 5m) or outside 60s–1h and is clamped before storage. `created_at` and the lowercase 32-hex `id` are assigned from the server clock and CSPRNG on accept.
+- The store is a 256-entry in-memory ring, overwritten in place when full, pruned on read and on a one-minute timer, never persisted. Rate limit: 10 POSTs per second per remote IP; loopback is exempt. Over the limit: `rate_limited` (429).
+- Signals never change `overall`, `verdicts[]` or `sources[]`. A flood of them leaves a `GET /v0/summary` byte-identical. Fixture: `signal-present`.
 
 ## 9. Transports and freshness
 

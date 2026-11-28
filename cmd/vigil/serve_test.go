@@ -16,15 +16,22 @@ import (
 	"github.com/Hedronite/vigil/internal/server"
 )
 
-func serveFixture(t *testing.T) (configPath, secret string) {
+func serveFixture(t *testing.T) (configPath, readSecret, signalSecret string) {
 	t.Helper()
 	addr := loopbackListen(t)
-	tokenPath := filepath.Join(t.TempDir(), "read.token")
-	secret = "facet-read-token"
-	if err := os.WriteFile(tokenPath, []byte(secret), 0o600); err != nil {
+	dir := t.TempDir()
+	readSecret = "facet-read-token"
+	signalSecret = "facet-signal-token"
+	readPath := filepath.Join(dir, "read.token")
+	sigPath := filepath.Join(dir, "signal.token")
+	if err := os.WriteFile(readPath, []byte(readSecret), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("VIGIL_READ_TOKEN_FILE", tokenPath)
+	if err := os.WriteFile(sigPath, []byte(signalSecret), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("VIGIL_READ_TOKEN_FILE", readPath)
+	t.Setenv("VIGIL_SIGNAL_TOKEN_FILE", sigPath)
 	publish(t, vendoredDoc(t, "green"), generated)
 	cfg := `apiVersion: vigil.config/v0
 listen: "` + addr + `"
@@ -38,8 +45,9 @@ authorities:
     path_ref: env:VIGIL_TEST_SIMPLEX
 tokens:
   read_file: env:VIGIL_READ_TOKEN_FILE
+  signal_file: env:VIGIL_SIGNAL_TOKEN_FILE
 `
-	return writeText(t, "config.yaml", cfg), secret
+	return writeText(t, "config.yaml", cfg), readSecret, signalSecret
 }
 
 func loopbackListen(t *testing.T) string {
@@ -105,7 +113,7 @@ func fetchSummary(t *testing.T, addr, token string) (string, int) {
 }
 
 func TestServeSummaryMatchesCLI(t *testing.T) {
-	cfg, secret := serveFixture(t)
+	cfg, secret, _ := serveFixture(t)
 	addr := listenFromConfig(t, cfg)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -129,8 +137,17 @@ func TestServeSummaryMatchesCLI(t *testing.T) {
 }
 
 func TestServeStartupWildcardListen(t *testing.T) {
-	tokenPath := writeText(t, "token", "secret")
-	t.Setenv("VIGIL_READ_TOKEN_FILE", tokenPath)
+	dir := t.TempDir()
+	readPath := filepath.Join(dir, "read.token")
+	sigPath := filepath.Join(dir, "signal.token")
+	if err := os.WriteFile(readPath, []byte("secret"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(sigPath, []byte("sig"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("VIGIL_READ_TOKEN_FILE", readPath)
+	t.Setenv("VIGIL_SIGNAL_TOKEN_FILE", sigPath)
 	publish(t, vendoredDoc(t, "green"), generated)
 	cfg := `apiVersion: vigil.config/v0
 listen: "0.0.0.0:10082"
@@ -139,6 +156,7 @@ authorities:
     path_ref: env:VIGIL_TEST_SIMPLEX
 tokens:
   read_file: env:VIGIL_READ_TOKEN_FILE
+  signal_file: env:VIGIL_SIGNAL_TOKEN_FILE
 `
 	path := writeText(t, "config.yaml", cfg)
 	code, _, errs := call(t, liveHandlers(), "serve", "--config", path)
@@ -148,7 +166,7 @@ tokens:
 }
 
 func TestServeNoBackendDialWithOverlay(t *testing.T) {
-	cfg, secret := serveFixture(t)
+	cfg, secret, _ := serveFixture(t)
 	addr := listenFromConfig(t, cfg)
 	overlay := writeText(t, "overlay.yaml", `apiVersion: vigil.overlay/v0
 backends:
@@ -193,7 +211,7 @@ hosts:
 }
 
 func TestServeShutdownExitZero(t *testing.T) {
-	cfg, _ := serveFixture(t)
+	cfg, _, _ := serveFixture(t)
 	addr := listenFromConfig(t, cfg)
 	ctx, cancel := context.WithCancel(context.Background())
 	codec := make(chan int, 1)
@@ -228,7 +246,7 @@ authorities:
 }
 
 func TestServeOverlayRejectedBeforeListen(t *testing.T) {
-	cfg, _ := serveFixture(t)
+	cfg, _, _ := serveFixture(t)
 	bad := writeText(t, "overlay.yaml", `apiVersion: vigil.overlay/v0
 backends:
   - id: unknown
@@ -244,8 +262,17 @@ hosts:
 }
 
 func TestServeNonLoopbackNeedsFlag(t *testing.T) {
-	tokenPath := writeText(t, "token", "secret")
-	t.Setenv("VIGIL_READ_TOKEN_FILE", tokenPath)
+	dir := t.TempDir()
+	readPath := filepath.Join(dir, "read.token")
+	sigPath := filepath.Join(dir, "signal.token")
+	if err := os.WriteFile(readPath, []byte("secret"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(sigPath, []byte("sig"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("VIGIL_READ_TOKEN_FILE", readPath)
+	t.Setenv("VIGIL_SIGNAL_TOKEN_FILE", sigPath)
 	publish(t, vendoredDoc(t, "green"), generated)
 	cfg := `apiVersion: vigil.config/v0
 listen: "192.0.2.5:10082"
@@ -254,6 +281,7 @@ authorities:
     path_ref: env:VIGIL_TEST_SIMPLEX
 tokens:
   read_file: env:VIGIL_READ_TOKEN_FILE
+  signal_file: env:VIGIL_SIGNAL_TOKEN_FILE
 `
 	path := writeText(t, "config.yaml", cfg)
 	code, _, errs := call(t, liveHandlers(), "serve", "--config", path)
@@ -263,7 +291,7 @@ tokens:
 }
 
 func TestServeBindFailure(t *testing.T) {
-	cfg, _ := serveFixture(t)
+	cfg, _, _ := serveFixture(t)
 	addr := listenFromConfig(t, cfg)
 	hold, err := net.Listen("tcp", addr)
 	if err != nil {

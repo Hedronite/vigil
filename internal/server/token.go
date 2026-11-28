@@ -11,7 +11,10 @@ import (
 	"github.com/Hedronite/vigil/internal/simplexdoc"
 )
 
-const readTokenEnv = "VIGIL_READ_TOKEN_FILE"
+const (
+	readTokenEnv   = "VIGIL_READ_TOKEN_FILE"
+	signalTokenEnv = "VIGIL_SIGNAL_TOKEN_FILE"
+)
 
 var (
 	// ErrTokenMissing means no read token path was configured.
@@ -21,6 +24,17 @@ var (
 	// ErrTokenEmpty means the token file has no secret.
 	ErrTokenEmpty = errors.New("token file is empty")
 )
+
+// SignalTokenPath resolves the signal-token file path from config and environment.
+func SignalTokenPath(locator string) (string, error) {
+	if path := strings.TrimSpace(os.Getenv(signalTokenEnv)); path != "" {
+		return path, nil
+	}
+	if locator == "" {
+		return "", ErrTokenMissing
+	}
+	return simplexdoc.ResolvePath(locator)
+}
 
 // ReadTokenPath resolves the read-token file path from config and environment.
 func ReadTokenPath(locator string) (string, error) {
