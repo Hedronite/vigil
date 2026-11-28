@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Hedronite/vigil/internal/config"
 	"github.com/Hedronite/vigil/internal/signals"
 	"github.com/Hedronite/vigil/internal/simplexdoc"
 	"github.com/Hedronite/vigil/internal/summary"
@@ -205,6 +206,20 @@ func TestTokenModeAndEmpty(t *testing.T) {
 	path = tokenFile(t, "   \n", 0o600)
 	if _, err := LoadReadTokenHash(path); err != ErrTokenEmpty {
 		t.Fatalf("empty = %v, want ErrTokenEmpty", err)
+	}
+}
+
+func TestRunRejectsZeroTestimonyWhenPushConfigured(t *testing.T) {
+	addr := loopbackAddr(t)
+	ctx := context.Background()
+	cfg := &config.Config{Authorities: []config.Authority{{ID: "simplex", Via: "push"}}}
+	err := Run(ctx, Options{
+		Listen: addr, ReadToken: tokenHash(t, "r"), SignalToken: tokenHash(t, "s"),
+		Config: cfg, Testimony: NewTestimonyStore(), State: NewState(),
+		Build: staticDoc(t), Signals: signals.NewStore(), Limiter: &signals.Limiter{},
+	})
+	if err == nil {
+		t.Fatal("expected missing testimony token hash")
 	}
 }
 

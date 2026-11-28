@@ -12,8 +12,9 @@ import (
 )
 
 const (
-	readTokenEnv   = "VIGIL_READ_TOKEN_FILE"
-	signalTokenEnv = "VIGIL_SIGNAL_TOKEN_FILE"
+	readTokenEnv      = "VIGIL_READ_TOKEN_FILE"
+	signalTokenEnv    = "VIGIL_SIGNAL_TOKEN_FILE"
+	testimonyTokenEnv = "VIGIL_TESTIMONY_TOKEN_FILE"
 )
 
 var (
@@ -45,6 +46,26 @@ func ReadTokenPath(locator string) (string, error) {
 		return "", ErrTokenMissing
 	}
 	return simplexdoc.ResolvePath(locator)
+}
+
+// TestimonyTokenPath resolves the testimony-token file path from config and environment.
+func TestimonyTokenPath(locator string) (string, error) {
+	if path := strings.TrimSpace(os.Getenv(testimonyTokenEnv)); path != "" {
+		return path, nil
+	}
+	if locator == "" {
+		return "", ErrTokenMissing
+	}
+	return simplexdoc.ResolvePath(locator)
+}
+
+// LoadTestimonyTokenHash resolves the testimony token locator and loads its hash.
+func LoadTestimonyTokenHash(locator string) ([32]byte, error) {
+	path, err := TestimonyTokenPath(locator)
+	if err != nil {
+		return [32]byte{}, err
+	}
+	return LoadReadTokenHash(path)
 }
 
 // LoadSignalTokenHash resolves the signal token locator and loads its hash.

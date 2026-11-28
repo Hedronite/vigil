@@ -19,7 +19,7 @@ set -o pipefail
 cd "$(dirname "$0")/.." || exit 2
 
 : "${FUZZTIME:=20s}"
-: "${EXPECTED:=FuzzConfig FuzzCLIArgs FuzzBase FuzzPath FuzzDecodeSimplexDoc FuzzSignalBody}"
+: "${EXPECTED:=FuzzConfig FuzzCLIArgs FuzzBase FuzzPath FuzzDecodeSimplexDoc FuzzSignalBody FuzzTestimonyBody}"
 
 # found: "dir name" lines, one per target.
 find_targets() {

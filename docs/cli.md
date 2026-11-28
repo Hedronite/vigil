@@ -277,6 +277,7 @@ Routes on `vigil serve`:
 | `/v0/hosts`, `/v0/hosts/{id}` | GET | read token |
 | `/v0/sources` | GET | read token (the authority rows of `vigil.summary/v0`, not a live backend probe) |
 | `/v0/signals` | GET, POST | read token for GET; signal token for POST |
+| `/v0/testimony/{source}` | POST | testimony token only (`simplex` + `via: push` in V3) |
 
 `GET /v0/summary` returns the same bytes as `vigil simplex summary --json` for
 the same config, overlay check, and clock. `GET /v0/hosts` returns the
@@ -286,8 +287,10 @@ the same config, overlay check, and clock. `GET /v0/hosts` returns the
 `GET /v0/signals` returns the live in-memory signals (read token).
 `POST /v0/signals` accepts a `vigil.signal/v0` body up to 4 KiB (signal token
 only; the read token on POST yields the same 401 as a missing credential).
-`POST /v0/testimony/{source}` arrives in G4 (404 or 405 until then). The read
-token is required on every other `/v0/*` route on any bind. Missing and wrong
+`POST /v0/testimony/{source}` accepts a Simplex witness document up to 4 MiB
+with the testimony token when the authority is `simplex` and `via: push`; success
+is **202** with `vigil.receipt/v0`. The read token is required on every other
+`/v0/*` route on any bind. Missing and wrong
 credentials get byte-identical 401 bodies with no `WWW-Authenticate` header:
 
 ```json
@@ -296,6 +299,7 @@ credentials get byte-identical 401 bodies with no `WWW-Authenticate` header:
 
 Every other non-200 is a `vigil.error/v0` document (`not_found`,
 `method_not_allowed`, `body_cap`, `invalid_signal`, `rate_limited`,
+`unknown_source`, `stale_testimony`, `schema_major`, `source_unavailable`,
 `internal`). Unknown paths are 404; the wrong method on a known path is 405.
 JSON only.
 
